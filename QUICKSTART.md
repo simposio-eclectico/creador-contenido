@@ -26,7 +26,9 @@ Abre esa URL en tu navegador.
 
 2. **Rellena el formulario:**
    - **Carpeta:** Ruta absoluta a tus fotos o carpeta procesada (ej: `/Users/tu-usuario/fotos` o `~/fotos`)
-   - **Letra:** Pega tus frases, una por línea
+   - **Letra:** Puedes:
+     - Cargar desde un archivo `.txt` o `.md` (clic en selector de archivo)
+     - O pegar directamente las frases, una por línea (en el textarea)
    - **Formato:** Elige el tamaño (Instagram 4:5 es el predeterminado)
 
 3. **Opciones avanzadas** (clic en ⚙️):

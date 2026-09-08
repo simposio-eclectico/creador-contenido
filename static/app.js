@@ -15,6 +15,36 @@ const reviewLink = document.getElementById("review-link");
 const errorText = document.getElementById("error-text");
 const btnReset = document.getElementById("btn-reset");
 
+// Elementos para manejo de archivo
+const lyricsFileInput = document.getElementById("lyrics-file");
+const lyricsTextarea = document.getElementById("lyrics");
+
+// Maneja la selección de archivo de letra
+lyricsFileInput.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    lyricsTextarea.value = text;
+    // Visual feedback
+    lyricsTextarea.style.borderColor = "var(--accent)";
+    setTimeout(() => {
+      lyricsTextarea.style.borderColor = "";
+    }, 1500);
+  } catch (error) {
+    alert(`Error al leer el archivo: ${error.message}`);
+    lyricsFileInput.value = "";
+  }
+});
+
+// Limpia el input file si el usuario edita el textarea
+lyricsTextarea.addEventListener("input", () => {
+  if (lyricsFileInput.value) {
+    lyricsFileInput.value = "";
+  }
+});
+
 submitForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -22,7 +52,7 @@ submitForm.addEventListener("submit", async (e) => {
   const formData = new FormData(submitForm);
   const payload = {
     folder: formData.get("folder"),
-    lyrics_text: formData.get("lyrics"),
+    lyrics_text: lyricsTextarea.value.trim(),
     format: formData.get("format"),
     top_k: parseInt(formData.get("top_k")) || 5,
     device: formData.get("device"),
@@ -32,6 +62,12 @@ submitForm.addEventListener("submit", async (e) => {
     generate_output: formData.get("generate_output") || null,
     main_output: formData.get("main_output") || null,
   };
+
+  // Validación local
+  if (!payload.lyrics_text) {
+    alert("Debes escribir o cargar una letra.");
+    return;
+  }
 
   try {
     const response = await fetch("/api/jobs", {

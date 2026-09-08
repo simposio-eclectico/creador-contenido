@@ -94,6 +94,7 @@ label {
 
 input[type="text"],
 input[type="number"],
+input[type="file"],
 textarea,
 select {
   width: 100%;
@@ -109,6 +110,7 @@ select {
 
 input[type="text"]:focus,
 input[type="number"]:focus,
+input[type="file"]:focus,
 textarea:focus,
 select:focus {
   outline: none;
@@ -128,6 +130,48 @@ small {
   margin-bottom: 12px;
   font-size: 0.85em;
   color: var(--fg-muted);
+}
+
+/* Grupo de inputs de letra */
+.lyrics-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lyrics-option {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: rgba(74, 222, 128, 0.02);
+}
+
+.lyrics-option label {
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--fg-text);
+}
+
+.lyrics-option input[type="file"],
+.lyrics-option textarea {
+  margin-bottom: 6px;
+}
+
+.lyrics-option small {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--fg-muted);
+}
+
+.lyrics-divider {
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 0.9em;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .advanced-options {

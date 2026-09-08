@@ -33,14 +33,33 @@
           <!-- Letra -->
           <fieldset>
             <legend>Letra</legend>
-            <label for="lyrics">Frases (una por línea):</label>
-            <textarea
-              id="lyrics"
-              name="lyrics"
-              rows="8"
-              placeholder="Primera frase&#10;Segunda frase&#10;..."
-              required
-            ></textarea>
+
+            <div class="lyrics-input-group">
+              <div class="lyrics-option">
+                <label for="lyrics-file">O cargar desde archivo:</label>
+                <input
+                  type="file"
+                  id="lyrics-file"
+                  name="lyrics_file"
+                  accept=".txt,.md"
+                >
+                <small>Archivo de texto (.txt o .md)</small>
+              </div>
+
+              <div class="lyrics-divider">— O —</div>
+
+              <div class="lyrics-option">
+                <label for="lyrics">Pegar frases directamente:</label>
+                <textarea
+                  id="lyrics"
+                  name="lyrics"
+                  rows="8"
+                  placeholder="Primera frase&#10;Segunda frase&#10;..."
+                ></textarea>
+                <small>Una frase por línea</small>
+              </div>
+            </div>
+
           </fieldset>
 
           <!-- Formato -->
