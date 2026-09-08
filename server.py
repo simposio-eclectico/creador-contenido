@@ -207,9 +207,9 @@ def submit_job():
     data = request.get_json() or {}
 
     # Validaciones
-    folder = data.get("folder", "").strip()
-    lyrics_text = data.get("lyrics_text", "").strip()
-    favorites_path = data.get("favorites_path", "").strip()
+    folder = (data.get("folder") or "").strip()
+    lyrics_text = (data.get("lyrics_text") or "").strip()
+    favorites_path = (data.get("favorites_path") or "").strip()
 
     if not folder:
         return jsonify({"error": "Carpeta requerida"}), 400
