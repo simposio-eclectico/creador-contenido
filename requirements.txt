@@ -1,5 +1,8 @@
-numpy
-Pillow
-torch
-open_clip_torch
-tqdm
+numpy>=1.24
+Pillow>=10.0
+torch>=2.1
+open_clip_torch>=2.24
+tqdm>=4.66
+opencv-contrib-python>=4.8
+scipy>=1.10
+scikit-learn>=1.3

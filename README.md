@@ -16,6 +16,36 @@ cada frase, componiendo el resultado listo para redes.
 python3 -m pip install -r requirements.txt
 ```
 
+## Procesar una carpeta de fotos sin metadata
+
+Si tienes una carpeta de fotos que no ha sido procesada por selector-fotogramas,
+puedes usar `generate_from_folder.py` para prepararla:
+
+```bash
+python3 generate_from_folder.py \
+  --input /ruta/a/carpeta/fotos \
+  --output ./mi-galeria-procesada
+```
+
+Esto genera la estructura de `metadata.json` con embeddings OpenCLIP y clustering,
+que luego puedes usar directamente con `main.py`:
+
+```bash
+python3 main.py \
+  --images ./mi-galeria-procesada \
+  --lyrics letra.txt \
+  --format instagram_4_5
+```
+
+Parámetros útiles de `generate_from_folder.py`:
+
+```bash
+python3 generate_from_folder.py --input fotos/ --output salida/ \
+  --cluster-eps 0.08 \          # distancia coseno para agrupar duplicados (bajo=mas fotos)
+  --no-faces \                  # desactiva deteccion de rostros
+  --device cuda                 # auto | cpu | cuda | mps
+```
+
 ## Uso
 
 ```bash
