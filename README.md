@@ -16,7 +16,31 @@ cada frase, componiendo el resultado listo para redes.
 python3 -m pip install -r requirements.txt
 ```
 
-## Procesar una carpeta de fotos sin metadata
+## Interfaz web (recomendado)
+
+La forma más fácil es usar la interfaz web que maneja todo automáticamente:
+
+```bash
+python3 server.py
+```
+
+Luego abre `http://localhost:5000` en tu navegador. Desde ahí puedes:
+
+1. Seleccionar una carpeta de fotos (con o sin `metadata.json`).
+2. Pegar la letra (frases, una por línea).
+3. Elegir formato (Instagram 4:5, cuadrado, story).
+4. Configurar opciones avanzadas (device, clustering, detección de rostros, favoritos).
+5. El servidor automáticamente:
+   - Detecta si la carpeta tiene `metadata.json`.
+   - Si no, corre `generate_from_folder.py` primero.
+   - Encadena automáticamente a `main.py`.
+   - Muestra un log en vivo y al terminar te da acceso al `review.html`.
+
+## Línea de comandos
+
+Si prefieres usar los scripts directamente desde terminal:
+
+### 1. Procesar una carpeta de fotos sin metadata
 
 Si tienes una carpeta de fotos que no ha sido procesada por selector-fotogramas,
 puedes usar `generate_from_folder.py` para prepararla:
@@ -27,23 +51,24 @@ python3 generate_from_folder.py \
   --output ./mi-galeria-procesada
 ```
 
-Esto genera la estructura de `metadata.json` con embeddings OpenCLIP y clustering,
-que luego puedes usar directamente con `main.py`:
+Esto genera la estructura de `metadata.json` con embeddings OpenCLIP y clustering.
 
-```bash
-python3 main.py \
-  --images ./mi-galeria-procesada \
-  --lyrics letra.txt \
-  --format instagram_4_5
-```
-
-Parámetros útiles de `generate_from_folder.py`:
+Parámetros útiles:
 
 ```bash
 python3 generate_from_folder.py --input fotos/ --output salida/ \
   --cluster-eps 0.08 \          # distancia coseno para agrupar duplicados (bajo=mas fotos)
   --no-faces \                  # desactiva deteccion de rostros
   --device cuda                 # auto | cpu | cuda | mps
+```
+
+### 2. Componer el contenido
+
+```bash
+python3 main.py \
+  --images ./mi-galeria-procesada \
+  --lyrics letra.txt \
+  --format instagram_4_5
 ```
 
 ## Uso

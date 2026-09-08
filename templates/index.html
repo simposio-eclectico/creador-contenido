@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Creador de Contenido</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎬 Creador de Contenido</h1>
+      <p>Procesa fotos y compone piezas para redes</p>
+    </header>
+
+    <main>
+      <section id="form-section" class="form-section">
+        <form id="submit-form">
+          <!-- Carpeta -->
+          <fieldset>
+            <legend>Fotos</legend>
+            <label for="folder">Ruta de carpeta (con o sin metadata.json):</label>
+            <input
+              type="text"
+              id="folder"
+              name="folder"
+              placeholder="/path/to/fotos"
+              required
+            >
+            <small>Ruta absoluta o con ~ para home</small>
+          </fieldset>
+
+          <!-- Letra -->
+          <fieldset>
+            <legend>Letra</legend>
+            <label for="lyrics">Frases (una por línea):</label>
+            <textarea
+              id="lyrics"
+              name="lyrics"
+              rows="8"
+              placeholder="Primera frase&#10;Segunda frase&#10;..."
+              required
+            ></textarea>
+          </fieldset>
+
+          <!-- Formato -->
+          <fieldset>
+            <legend>Formato</legend>
+            <label for="format">Tamaño:</label>
+            <select id="format" name="format">
+              <option value="instagram_4_5" selected>Instagram 4:5 (1080x1350)</option>
+              <option value="square">Cuadrado (1080x1080)</option>
+              <option value="story">Story (1080x1920)</option>
+            </select>
+          </fieldset>
+
+          <!-- Opciones avanzadas -->
+          <details class="advanced-options">
+            <summary>⚙️ Opciones avanzadas</summary>
+
+            <fieldset>
+              <label for="top-k">Candidatas por frase (top-k):</label>
+              <input type="number" id="top-k" name="top_k" value="5" min="1" max="20">
+            </fieldset>
+
+            <fieldset>
+              <label for="device">Dispositivo:</label>
+              <select id="device" name="device">
+                <option value="auto" selected>Auto (GPU si disponible)</option>
+                <option value="cpu">CPU</option>
+                <option value="cuda">CUDA (NVIDIA)</option>
+                <option value="mps">Metal (Apple)</option>
+              </select>
+            </fieldset>
+
+            <fieldset>
+              <label for="cluster-eps">Similitud para agrupar fotos (cluster-eps):</label>
+              <input type="number" id="cluster-eps" name="cluster_eps" value="0.08" min="0.01" max="0.5" step="0.01">
+              <small>Más bajo = más fotos diferentes; más alto = menos fotos</small>
+            </fieldset>
+
+            <fieldset>
+              <label>
+                <input type="checkbox" id="no-faces" name="no_faces">
+                Desactivar detección de rostros
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <label for="favorites">Archivo de favoritos (opcional):</label>
+              <input type="text" id="favorites" name="favorites_path" placeholder="/path/to/respaldo.json">
+              <small>JSON con respaldo de favoritos del visor</small>
+            </fieldset>
+
+            <fieldset>
+              <label for="generate-output">Carpeta de salida (generate, opcional):</label>
+              <input type="text" id="generate-output" name="generate_output" placeholder="/path/custom/salida">
+              <small>Solo si necesita procesar fotos crudas</small>
+            </fieldset>
+
+            <fieldset>
+              <label for="main-output">Carpeta de salida (resultado final, opcional):</label>
+              <input type="text" id="main-output" name="main_output" placeholder="/path/custom/resultado">
+              <small>Donde guardará review.html y asociaciones</small>
+            </fieldset>
+          </details>
+
+          <button type="submit" class="btn-primary">Procesar →</button>
+        </form>
+      </section>
+
+      <section id="status-section" class="status-section hidden">
+        <h2>Estado del procesamiento</h2>
+
+        <div class="status-badge" id="status-badge">Pendiente</div>
+        <p class="status-stage" id="status-stage"></p>
+
+        <pre id="log" class="log-output"></pre>
+
+        <div id="result-area" class="result-area hidden">
+          <a id="review-link" href="#" target="_blank" class="btn-success">📸 Ver resultado →</a>
+        </div>
+
+        <div id="error-area" class="error-area hidden">
+          <h3>❌ Error</h3>
+          <pre id="error-text"></pre>
+        </div>
+
+        <button id="btn-reset" class="btn-secondary hidden">Volver a intentar</button>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://github.com/your-repo" target="_blank">GitHub</a> ·
+        Creador de Contenido v1.0
+      </p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
