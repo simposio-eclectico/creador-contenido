@@ -20,14 +20,17 @@
           <fieldset>
             <legend>Fotos</legend>
             <label for="folder">Ruta de carpeta (con o sin metadata.json):</label>
-            <input
-              type="text"
-              id="folder"
-              name="folder"
-              placeholder="/path/to/fotos"
-              required
-            >
-            <small>Ruta absoluta o con ~ para home</small>
+            <div class="folder-input-row">
+              <input
+                type="text"
+                id="folder"
+                name="folder"
+                placeholder="/path/to/fotos"
+                required
+              >
+              <button type="button" id="btn-browse-folder" class="btn-secondary btn-browse">📁 Examinar</button>
+            </div>
+            <small>Ruta absoluta o con ~ para home; o usa "Examinar" para navegar visualmente</small>
           </fieldset>
 
           <!-- Letra -->
@@ -155,6 +158,32 @@
         Creador de Contenido v1.0
       </p>
     </footer>
+  </div>
+
+  <!-- Modal: selector visual de carpetas -->
+  <div id="folder-browser-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📁 Seleccionar carpeta</h3>
+        <button type="button" id="btn-browse-close" class="btn-icon" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="modal-current-path">
+        <span id="browse-current-path"></span>
+        <span id="browse-metadata-badge" class="metadata-badge hidden">✓ tiene metadata.json</span>
+      </div>
+
+      <div id="browse-error" class="browse-error hidden"></div>
+
+      <ul id="browse-dir-list" class="browse-dir-list">
+        <!-- entradas inyectadas por JS -->
+      </ul>
+
+      <div class="modal-footer">
+        <button type="button" id="btn-browse-up" class="btn-secondary">⬆ Subir</button>
+        <button type="button" id="btn-browse-select" class="btn-primary">Seleccionar esta carpeta</button>
+      </div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>

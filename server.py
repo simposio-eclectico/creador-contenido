@@ -271,6 +271,40 @@ def get_status(job_id):
     })
 
 
+@app.route("/api/browse")
+def browse_folders():
+    """Lista subcarpetas de un directorio, para el selector visual de carpetas."""
+    raw_path = request.args.get("path", "").strip()
+    current = Path(raw_path).expanduser().resolve() if raw_path else Path.home()
+
+    if not current.exists() or not current.is_dir():
+        return jsonify({"error": f"No es una carpeta válida: {current}"}), 400
+
+    dirs = []
+    try:
+        entries = sorted(current.iterdir(), key=lambda p: p.name.lower())
+    except PermissionError:
+        return jsonify({"error": f"Sin permiso para leer: {current}"}), 403
+
+    for entry in entries:
+        if not entry.is_dir() or entry.name.startswith("."):
+            continue
+        try:
+            has_metadata = (entry / "metadata.json").exists()
+        except PermissionError:
+            has_metadata = False
+        dirs.append({"name": entry.name, "path": str(entry), "has_metadata": has_metadata})
+
+    parent = str(current.parent) if current.parent != current else None
+
+    return jsonify({
+        "current": str(current),
+        "parent": parent,
+        "has_metadata": (current / "metadata.json").exists(),
+        "dirs": dirs,
+    })
+
+
 @app.route("/jobs/<job_id>/review/<path:subpath>")
 def serve_review(job_id, subpath):
     """Sirve archivos desde la carpeta de salida del job (con guard contra path traversal)."""

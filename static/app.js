@@ -45,6 +45,120 @@ lyricsTextarea.addEventListener("input", () => {
   }
 });
 
+// --------------------------------------------------------------------------
+// Selector visual de carpetas
+// --------------------------------------------------------------------------
+
+const folderInput = document.getElementById("folder");
+const btnBrowseFolder = document.getElementById("btn-browse-folder");
+const browserModal = document.getElementById("folder-browser-modal");
+const btnBrowseClose = document.getElementById("btn-browse-close");
+const btnBrowseUp = document.getElementById("btn-browse-up");
+const btnBrowseSelect = document.getElementById("btn-browse-select");
+const browseCurrentPath = document.getElementById("browse-current-path");
+const browseMetadataBadge = document.getElementById("browse-metadata-badge");
+const browseDirList = document.getElementById("browse-dir-list");
+const browseError = document.getElementById("browse-error");
+
+let browserCurrentPath = null;
+let browserParentPath = null;
+
+async function loadBrowseDir(path, { fallbackToHome = false } = {}) {
+  browseError.classList.add("hidden");
+
+  const url = path ? `/api/browse?path=${encodeURIComponent(path)}` : "/api/browse";
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (fallbackToHome) {
+        return loadBrowseDir(null);
+      }
+      browseError.textContent = data.error || "No se pudo abrir la carpeta";
+      browseError.classList.remove("hidden");
+      return;
+    }
+
+    browserCurrentPath = data.current;
+    browserParentPath = data.parent;
+    browseCurrentPath.textContent = data.current;
+    browseMetadataBadge.classList.toggle("hidden", !data.has_metadata);
+    btnBrowseUp.disabled = !data.parent;
+
+    browseDirList.innerHTML = "";
+
+    if (data.dirs.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty-message";
+      li.textContent = "(sin subcarpetas)";
+      browseDirList.appendChild(li);
+    } else {
+      for (const dir of data.dirs) {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <span class="dir-icon">📁</span>
+          <span class="dir-name">${escapeHtml(dir.name)}</span>
+          ${dir.has_metadata ? '<span class="metadata-badge">metadata.json</span>' : ""}
+        `;
+        li.addEventListener("click", () => loadBrowseDir(dir.path));
+        browseDirList.appendChild(li);
+      }
+    }
+  } catch (error) {
+    if (fallbackToHome) {
+      return loadBrowseDir(null);
+    }
+    browseError.textContent = `Error de red: ${error.message}`;
+    browseError.classList.remove("hidden");
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function openBrowser() {
+  browserModal.classList.remove("hidden");
+  // Arranca desde el valor actual del input si parece una ruta válida, si no desde home
+  const startPath = folderInput.value.trim() || null;
+  loadBrowseDir(startPath, { fallbackToHome: true });
+}
+
+function closeBrowser() {
+  browserModal.classList.add("hidden");
+}
+
+btnBrowseFolder.addEventListener("click", openBrowser);
+btnBrowseClose.addEventListener("click", closeBrowser);
+
+btnBrowseUp.addEventListener("click", () => {
+  if (browserParentPath) {
+    loadBrowseDir(browserParentPath);
+  }
+});
+
+btnBrowseSelect.addEventListener("click", () => {
+  if (browserCurrentPath) {
+    folderInput.value = browserCurrentPath;
+  }
+  closeBrowser();
+});
+
+browserModal.addEventListener("click", (e) => {
+  if (e.target === browserModal) {
+    closeBrowser();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !browserModal.classList.contains("hidden")) {
+    closeBrowser();
+  }
+});
+
 submitForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
