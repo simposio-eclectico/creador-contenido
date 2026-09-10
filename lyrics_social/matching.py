@@ -23,6 +23,26 @@ def classify_relation(line, frame, clip_score):
     return "semantica"
 
 
+def all_candidates(lines, frames):
+    """Modo manual: devuelve TODAS las fotos como candidatas en TODAS las
+    lineas (sin rankear por CLIP), para que el usuario las compare a mano en
+    review.html en vez de que el algoritmo elija las mejores por frase."""
+    results = []
+    for i, line in enumerate(lines):
+        candidates = [
+            {
+                "image_id": frame["id"],
+                "image": frame["full"],
+                "clip_score": None,
+                "confidence": "—",
+                "relation": "manual",
+            }
+            for frame in frames
+        ]
+        results.append({"index": i, "line": line, "candidates": candidates})
+    return results
+
+
 def rank_candidates(lines, line_embeddings, frames, image_embeddings, top_k):
     """Devuelve, por linea, hasta top_k candidatos ordenados por similitud."""
     # embeddings ya normalizados en origen (selector-fotogramas y text_embeddings)

@@ -46,6 +46,23 @@ lyricsTextarea.addEventListener("input", () => {
 });
 
 // --------------------------------------------------------------------------
+// Modo de selección (automático / manual)
+// --------------------------------------------------------------------------
+
+const selectionModeRadios = document.querySelectorAll('input[name="selection_mode"]');
+const topKFieldset = document.getElementById("top-k-fieldset");
+
+function updateTopKAvailability() {
+  const mode = document.querySelector('input[name="selection_mode"]:checked')?.value;
+  const isManual = mode === "manual";
+  topKFieldset.classList.toggle("disabled", isManual);
+  document.getElementById("top-k").disabled = isManual;
+}
+
+selectionModeRadios.forEach((radio) => radio.addEventListener("change", updateTopKAvailability));
+updateTopKAvailability();
+
+// --------------------------------------------------------------------------
 // Selector visual de carpetas
 // --------------------------------------------------------------------------
 
@@ -168,6 +185,7 @@ submitForm.addEventListener("submit", async (e) => {
     folder: formData.get("folder"),
     lyrics_text: lyricsTextarea.value.trim(),
     format: formData.get("format"),
+    selection_mode: formData.get("selection_mode") || "auto",
     top_k: parseInt(formData.get("top_k")) || 5,
     device: formData.get("device"),
     cluster_eps: parseFloat(formData.get("cluster_eps")) || 0.08,

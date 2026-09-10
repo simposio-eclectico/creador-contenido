@@ -144,12 +144,17 @@ def run_job(job_id: str, params: dict):
         main_output = Path(main_output).expanduser().resolve()
         main_output.mkdir(parents=True, exist_ok=True)
 
+        selection_mode = params.get("selection_mode", "auto")
+        if selection_mode not in ("auto", "manual"):
+            selection_mode = "auto"
+
         cmd = [
             sys.executable,
             str(PROJECT_ROOT / "main.py"),
             "--images", str(images_dir),
             "--lyrics", str(lyrics_txt),
             "--format", params.get("format", "instagram_4_5"),
+            "--selection-mode", selection_mode,
             "--top-k", str(params.get("top_k", 5)),
             "--device", params.get("device", "auto"),
             "--output", str(main_output),

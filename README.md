@@ -118,6 +118,22 @@ mi-video-review/creator/
 | `square` | 1080x1080 |
 | `story` | 1080x1920 |
 
+### Modo de seleccion (`--selection-mode`)
+
+| Modo | Que hace |
+|---|---|
+| `auto` (default) | El algoritmo rankea por similitud CLIP y guarda las `--top-k` mejores fotos por frase |
+| `manual` | Todas las fotos quedan como candidatas en todas las frases (sin rankear ni usar CLIP), para elegir a mano en `review.html` |
+
+```bash
+python3 main.py --images ./mi-video-review --lyrics letra.txt --selection-mode manual
+```
+
+En modo `manual` no se hornea una composicion con texto por cada combinacion
+frase x foto (seria carisimo con muchas fotos/frases): el selector de
+candidatas en `review.html` muestra la miniatura original de
+selector-fotogramas, y `--top-k` se ignora.
+
 ## Como funciona el matching hoy
 
 Cada frase y cada imagen viven en el mismo espacio de embeddings OpenCLIP

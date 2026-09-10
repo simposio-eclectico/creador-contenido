@@ -16,6 +16,27 @@
     <main>
       <section id="form-section" class="form-section">
         <form id="submit-form">
+          <!-- Modo de selección -->
+          <fieldset>
+            <legend>Modo de selección de fotos</legend>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="selection_mode" value="auto" checked>
+                <span>
+                  <strong>Automático</strong>
+                  <small>El algoritmo elige las mejores fotos para cada línea (por similitud con el texto)</small>
+                </span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="selection_mode" value="manual">
+                <span>
+                  <strong>Manual</strong>
+                  <small>Se muestran todas las fotos en todas las líneas, para que elijas vos cuál queda mejor</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
           <!-- Carpeta -->
           <fieldset>
             <legend>Fotos</legend>
@@ -80,9 +101,10 @@
           <details class="advanced-options">
             <summary>⚙️ Opciones avanzadas</summary>
 
-            <fieldset>
+            <fieldset id="top-k-fieldset">
               <label for="top-k">Candidatas por frase (top-k):</label>
               <input type="number" id="top-k" name="top_k" value="5" min="1" max="20">
+              <small>Solo aplica en modo "Automático"</small>
             </fieldset>
 
             <fieldset>
