@@ -1,11 +1,13 @@
-"""Genera review.html: por frase, elegir la imagen candidata y editar el
-estilo del texto (tipografia, color, efecto) con vista previa instantanea.
+"""Genera review.html: por frase, elegir la imagen candidata, reencuadrar la
+foto (arrastrando sobre la vista previa) y editar el estilo del texto
+(tipografia, color, efecto, posicion) con vista previa instantanea.
 
-El texto se dibuja en un <canvas> sobre el fondo pre-compuesto (recorte +
-degrade, ver composer.py::compose_background) usando el Canvas 2D API del
-navegador, asi que cambiar cualquier control redibuja al instante sin volver
-a llamar a Python. "Descargar PNG" vuelve a dibujar a resolucion completa y
-dispara la descarga.
+Tanto el recorte "cover" de la foto (replicando composer.py::_cover_crop) como
+el degrade y el texto se dibujan en un <canvas> sobre la foto original sin
+recortar (campo "source" de metadata.json), usando el Canvas 2D API del
+navegador, asi que arrastrar la foto o cambiar cualquier control redibuja al
+instante sin volver a llamar a Python. "Descargar PNG" vuelve a dibujar a
+resolucion completa y dispara la descarga.
 """
 import html
 import json
@@ -146,6 +148,63 @@ function anchorDefaultY(anchor) {{
   return anchor === "top" ? BAND_FRAC / 2 : 1 - BAND_FRAC / 2;
 }}
 
+// Replica _cover_crop de composer.py: calcula el rectangulo fuente (en pixeles
+// de la imagen original) que hay que recortar para llenar target_w x target_h
+// sin deformar, y cuanto margen de sobra ("maxOffset") queda para paniar.
+function coverCropRect(imgW, imgH, targetW, targetH) {{
+  const imgRatio = imgW / imgH;
+  const targetRatio = targetW / targetH;
+  if (imgRatio > targetRatio) {{
+    const sh = imgH;
+    const sw = sh * targetRatio;
+    return {{ axis: "x", sw, sh, maxOffset: imgW - sw }};
+  }}
+  const sw = imgW;
+  const sh = sw / targetRatio;
+  return {{ axis: "y", sw, sh, maxOffset: imgH - sh }};
+}}
+
+// Posicion inicial del recorte: centrado, salvo sesgo vertical hacia la cara
+// (mismo criterio que _cover_crop en Python) cuando hay margen para paniar.
+function defaultPan(imgW, imgH, faceCy) {{
+  const rect = coverCropRect(imgW, imgH, CANVAS_W, CANVAS_H);
+  if (rect.axis === "y" && faceCy != null && rect.maxOffset > 0) {{
+    const centerY = faceCy * imgH;
+    const y0 = Math.min(Math.max(centerY - rect.sh / 2, 0), rect.maxOffset);
+    return {{ panX: 0.5, panY: y0 / rect.maxOffset }};
+  }}
+  return {{ panX: 0.5, panY: 0.5 }};
+}}
+
+function drawCover(ctx, img, w, h, panX, panY) {{
+  const rect = coverCropRect(img.naturalWidth, img.naturalHeight, w, h);
+  let sx = 0, sy = 0;
+  if (rect.axis === "x") {{
+    sx = rect.maxOffset * panX;
+  }} else {{
+    sy = rect.maxOffset * panY;
+  }}
+  ctx.drawImage(img, sx, sy, rect.sw, rect.sh, 0, 0, w, h);
+}}
+
+// Replica _vertical_gradient de composer.py con un gradiente de canvas.
+function drawScrim(ctx, w, h, anchor) {{
+  const bandFrac = Math.min(1, BAND_FRAC);
+  const maxAlpha = 190 / 255;
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  if (anchor === "top") {{
+    grad.addColorStop(0, `rgba(0,0,0,${{maxAlpha}})`);
+    grad.addColorStop(bandFrac, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+  }} else {{
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1 - bandFrac, "rgba(0,0,0,0)");
+    grad.addColorStop(1, `rgba(0,0,0,${{maxAlpha}})`);
+  }}
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+}}
+
 function drawText(ctx, w, h, text, s) {{
   const fontFrac = s.fontSize != null ? s.fontSize : 0.075;
   const fontSize = Math.round(w * fontFrac);
@@ -200,15 +259,21 @@ async function renderLine(index) {{
   const h = Math.round(CANVAS_H * PREVIEW_SCALE);
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext("2d");
-  const img = await loadImage(s.background);
+  const img = await loadImage(s.source);
+  if (s.panX == null || s.panY == null) {{
+    const pan = defaultPan(img.naturalWidth, img.naturalHeight, s.faceCy);
+    s.panX = pan.panX; s.panY = pan.panY;
+  }}
   ctx.clearRect(0, 0, w, h);
-  ctx.drawImage(img, 0, 0, w, h);
+  drawCover(ctx, img, w, h, s.panX, s.panY);
+  drawScrim(ctx, w, h, s.anchor);
   drawText(ctx, w, h, s.text, s);
 }}
 
-function selectCandidate(index, imageId, background, anchor) {{
+function selectCandidate(index, imageId, source, anchor, faceCy) {{
   const s = state[index];
-  s.imageId = imageId; s.background = background; s.anchor = anchor;
+  s.imageId = imageId; s.source = source; s.anchor = anchor; s.faceCy = faceCy;
+  s.panX = null; s.panY = null; // se recalcula el encuadre por defecto para la nueva foto
   s.posY = anchorDefaultY(anchor);
   const posyEl = document.getElementById(`posy-${{index}}`);
   if (posyEl) posyEl.value = Math.round(s.posY * 100);
@@ -256,12 +321,8 @@ function initDrag(index) {{
     const point = e.touches ? e.touches[0] : e;
     const x = Math.min(1, Math.max(0, (point.clientX - rect.left) / rect.width));
     const y = Math.min(1, Math.max(0, (point.clientY - rect.top) / rect.height));
-    state[index].posX = x;
-    state[index].posY = y;
-    const posxEl = document.getElementById(`posx-${{index}}`);
-    const posyEl = document.getElementById(`posy-${{index}}`);
-    if (posxEl) posxEl.value = Math.round(x * 100);
-    if (posyEl) posyEl.value = Math.round(y * 100);
+    state[index].panX = x;
+    state[index].panY = y;
     renderLine(index);
   }}
 
@@ -278,8 +339,9 @@ async function downloadLine(index) {{
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_W; canvas.height = CANVAS_H;
   const ctx = canvas.getContext("2d");
-  const img = await loadImage(s.background);
-  ctx.drawImage(img, 0, 0, CANVAS_W, CANVAS_H);
+  const img = await loadImage(s.source);
+  drawCover(ctx, img, CANVAS_W, CANVAS_H, s.panX, s.panY);
+  drawScrim(ctx, CANVAS_W, CANVAS_H, s.anchor);
   drawText(ctx, CANVAS_W, CANVAS_H, s.text, s);
   const a = document.createElement("a");
   a.download = `${{String(index + 1).padStart(3, "0")}}.png`;
@@ -296,6 +358,7 @@ function copySelection() {{
       pos_x: s.posX, pos_y: s.posY, align: s.align,
       font_size: s.fontSize, opacity: s.opacity,
       letter_spacing: s.letterSpacing, word_spacing: s.wordSpacing, line_height: s.lineHeightMult,
+      image_pan_x: s.panX, image_pan_y: s.panY,
     }};
   }}
   const text = JSON.stringify(out, null, 2);
@@ -310,8 +373,11 @@ DATA.forEach(line => {{
   state[line.index] = {{
     text: line.line,
     imageId: first.image_id,
-    background: first.background,
+    source: first.source,
+    faceCy: first.face_position ? first.face_position[1] : null,
     anchor: first.text_anchor,
+    panX: null,
+    panY: null,
     font: FONTS[0][0],
     color: "#ffffff",
     effect: "contorno",
@@ -341,7 +407,7 @@ LINE_TEMPLATE = """
 <section class="line">
   <div class="preview">
     <canvas id="canvas-{index}"></canvas>
-    <div class="drag-hint">Arrastr&aacute; el texto en la vista previa para reposicionarlo</div>
+    <div class="drag-hint">Arrastr&aacute; la foto en la vista previa para reencuadrarla (el texto se mueve con los controles de posici&oacute;n)</div>
     <button onclick="downloadLine({index})">Descargar PNG</button>
   </div>
   <div class="panel">
@@ -422,7 +488,7 @@ LINE_TEMPLATE = """
 
 THUMB_TEMPLATE = """
 <div class="thumb{selected_class}" data-line="{index}" data-image="{image_id}"
-     onclick="selectCandidate({index}, {image_id}, '{background}', '{anchor}')">
+     onclick="selectCandidate({index}, {image_id}, '{source}', '{anchor}', {face_cy})">
   <img src="{composed}" alt="candidato {image_id}">
   <div class="meta">{image_id} &middot; {relation} &middot; conf {confidence}</div>
 </div>
@@ -439,8 +505,9 @@ def write_review_html(output_dir, results, format_name):
                 index=result["index"],
                 image_id=c["image_id"],
                 composed=c["composed"],
-                background=c["background"],
+                source=c["source"],
                 anchor=c["text_anchor"],
+                face_cy=json.dumps(c["face_position"][1] if c.get("face_position") else None),
                 relation=html.escape(c["relation"]),
                 confidence=c["confidence"],
                 selected_class=" selected" if i == 0 else "",
@@ -471,8 +538,9 @@ def write_review_html(output_dir, results, format_name):
                 "candidates": [
                     {
                         "image_id": c["image_id"],
-                        "background": c["background"],
+                        "source": c["source"],
                         "text_anchor": c["text_anchor"],
+                        "face_position": c.get("face_position"),
                     }
                     for c in r["candidates"]
                 ],

@@ -26,6 +26,7 @@ Uso:
 """
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -75,27 +76,42 @@ def main():
 
     n_candidates = sum(len(r["candidates"]) for r in results)
     print(f"Componiendo formato {args.format} ({n_candidates} candidatas x2: miniatura + fondo)...")
+    copied_sources = {}  # image_id -> ruta relativa ya copiada, evita duplicar copias
     for result in results:
         line_idx = result["index"] + 1
         for candidate in result["candidates"]:
             frame = frames_by_id[candidate["image_id"]]
             thumb_path = f"compositions/{line_idx:03d}_{candidate['image_id']}.jpg"
             bg_path = f"backgrounds/{line_idx:03d}_{candidate['image_id']}.jpg"
+            full_src = frame_full_path(images_dir, frame)
             compose(
-                image_path=frame_full_path(images_dir, frame),
+                image_path=full_src,
                 text=result["line"],
                 frame=frame,
                 format_name=args.format,
                 output_path=output_dir / thumb_path,
             )
             compose_background(
-                image_path=frame_full_path(images_dir, frame),
+                image_path=full_src,
                 frame=frame,
                 format_name=args.format,
                 output_path=output_dir / bg_path,
             )
+
+            # Copia la foto original (sin recortar) para que review.html pueda
+            # recortarla/posicionarla en vivo en el navegador (ver initDrag/drawCover).
+            image_id = candidate["image_id"]
+            if image_id not in copied_sources:
+                source_path = f"sources/{image_id:05d}{full_src.suffix}"
+                dest = output_dir / source_path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(full_src, dest)
+                copied_sources[image_id] = source_path
+
             candidate["composed"] = thumb_path
             candidate["background"] = bg_path
+            candidate["source"] = copied_sources[image_id]
+            candidate["face_position"] = frame.get("face_position")
             candidate["text_anchor"] = text_anchor(frame)
 
     associations = {
