@@ -1,16 +1,18 @@
 # Guía rápida: Interfaz web
 
-## Instalación
-
-```bash
-# Una sola vez: instalar dependencias
-python3 -m pip install -r requirements.txt
-```
-
 ## Ejecutar el servidor
 
 ```bash
-# Desde el directorio creador-contenido/
+./run.sh
+```
+
+Este script crea un entorno virtual en `.venv/` (si no existe), instala/actualiza
+las dependencias y arranca el servidor. Es lo único que necesitas correr cada vez.
+
+### Alternativa manual
+
+```bash
+python3 -m pip install -r requirements.txt
 python3 server.py
 ```
 
