@@ -66,15 +66,29 @@ GET    /jobs/&lt;id&gt;/video-output/&lt;path&gt; → serve processed files
 
 ---
 
-## Phase 3: Frontend Tabs & Forms (TODO)
+## Phase 3: Frontend Tabs & Forms ✅
 
-Tasks:
-- [ ] Modify `templates/index.html` to add tab structure
-- [ ] Extract existing form into tab content
-- [ ] Add video upload form (Tab 1)
-- [ ] Add tab switching styles + animations
-- [ ] Update `static/app.js` with tab logic
-- [ ] Update `static/style.css` for tab styling
+**Completed:**
+- [x] Modified `templates/index.html` to add tab structure
+  - Added `.tabs-header` with tab buttons
+  - Wrapped composition form in `#tab-composition`
+  - Created new `#tab-video` with video upload form
+- [x] Added video upload form (Tab 1)
+  - File input with video/* accept
+  - Status section with badge, logs, error area
+  - "Use in Composition" button
+- [x] Updated `static/style.css` with tab styling
+  - `.tabs-header` and `.tab-button` styles
+  - `.tab-button.active` state
+  - Fade-in animation for tab content
+  - Responsive overflow handling
+- [x] Updated `static/app.js` with tab logic
+  - `switchTab()` function for tab switching
+  - Video form submission handler
+  - `pollVideoStatus()` for video job polling
+  - `formatVideoStatus()` for status display
+  - "Use video output" button integration
+  - Both composition and video jobs can run independently
 
 ---
 

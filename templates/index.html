@@ -13,7 +13,13 @@
       <p>Procesa fotos y compone piezas para redes</p>
     </header>
 
+    <div class="tabs-header">
+      <button class="tab-button active" data-tab="composition">🎨 Composición</button>
+      <button class="tab-button" data-tab="video">🎬 Video</button>
+    </div>
+
     <main>
+      <section id="tab-composition" class="tab-content">
       <section id="form-section" class="form-section">
         <form id="submit-form">
           <!-- Modo de selección -->
@@ -171,6 +177,50 @@
         </div>
 
         <button id="btn-reset" class="btn-secondary hidden">Volver a intentar</button>
+      </section>
+      </section>
+
+      <section id="tab-video" class="tab-content hidden">
+        <section id="video-form-section" class="form-section">
+          <h2>Procesar video</h2>
+          <form id="video-form">
+            <fieldset>
+              <legend>Archivo de video</legend>
+              <label for="video-input">Selecciona un archivo de video:</label>
+              <input
+                type="file"
+                id="video-input"
+                name="video"
+                accept="video/*"
+                required
+              >
+              <small>Formatos: MP4, MOV, MKV, etc.</small>
+            </fieldset>
+            <button type="submit" class="btn-primary">Procesar video →</button>
+          </form>
+        </section>
+
+        <section id="video-status-section" class="status-section hidden">
+          <h2>Estado del procesamiento</h2>
+          <div class="status-badge" id="video-status-badge">Pendiente</div>
+          <p class="status-stage" id="video-status-stage"></p>
+          <pre id="video-log" class="log-output"></pre>
+
+          <div id="video-result-area" class="result-area hidden">
+            <button id="btn-use-video-output" class="btn-success">
+              ✓ Usar en Composición →
+            </button>
+          </div>
+
+          <div id="video-error-area" class="error-area hidden">
+            <h3>❌ Error</h3>
+            <pre id="video-error-text"></pre>
+          </div>
+
+          <button id="btn-video-reset" class="btn-secondary hidden">
+            Volver a intentar
+          </button>
+        </section>
       </section>
     </main>
 

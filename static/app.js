@@ -1,7 +1,36 @@
 // app.js - Interfaz web vanilla para creador-contenido
 
+// --------------------------------------------------------------------------
+// Manejo de pestañas (tabs)
+// --------------------------------------------------------------------------
+
+let currentTab = "composition";
 let currentJobId = null;
 let statusPollingInterval = null;
+let currentVideoJobId = null;
+let videoPollingInterval = null;
+
+function switchTab(tabName) {
+  currentTab = tabName;
+
+  // Oculta todos los tabs
+  document.querySelectorAll(".tab-content").forEach(tab => {
+    tab.classList.add("hidden");
+  });
+
+  // Muestra el tab seleccionado
+  document.getElementById(`tab-${tabName}`).classList.remove("hidden");
+
+  // Actualiza botones
+  document.querySelectorAll(".tab-button").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === tabName);
+  });
+}
+
+// Event listeners para botones de tabs
+document.querySelectorAll(".tab-button").forEach(btn => {
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+});
 
 const formSection = document.getElementById("form-section");
 const statusSection = document.getElementById("status-section");
@@ -272,6 +301,130 @@ async function pollStatus() {
     console.error("Error polling:", error);
   }
 }
+
+// --------------------------------------------------------------------------
+// Manejo de procesamiento de video
+// --------------------------------------------------------------------------
+
+const videoForm = document.getElementById("video-form");
+const videoInput = document.getElementById("video-input");
+const videoFormSection = document.getElementById("video-form-section");
+const videoStatusSection = document.getElementById("video-status-section");
+const videoBadge = document.getElementById("video-status-badge");
+const videoStage = document.getElementById("video-status-stage");
+const videoLog = document.getElementById("video-log");
+const videoResultArea = document.getElementById("video-result-area");
+const videoErrorArea = document.getElementById("video-error-area");
+const videoErrorText = document.getElementById("video-error-text");
+const btnVideoReset = document.getElementById("btn-video-reset");
+const btnUseVideoOutput = document.getElementById("btn-use-video-output");
+
+videoForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const file = videoInput.files?.[0];
+  if (!file) {
+    alert("Selecciona un archivo de video");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("video", file);
+
+  try {
+    const response = await fetch("/api/upload-video", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      alert(`Error: ${error.error || "No se pudo enviar el video"}`);
+      return;
+    }
+
+    const result = await response.json();
+    currentVideoJobId = result.job_id;
+
+    videoFormSection.classList.add("hidden");
+    videoStatusSection.classList.remove("hidden");
+    videoLog.textContent = "";
+    videoResultArea.classList.add("hidden");
+    videoErrorArea.classList.add("hidden");
+    btnVideoReset.classList.add("hidden");
+
+    pollVideoStatus();
+    videoPollingInterval = setInterval(pollVideoStatus, 1500);
+  } catch (error) {
+    alert(`Error: ${error.message}`);
+  }
+});
+
+async function pollVideoStatus() {
+  if (!currentVideoJobId) return;
+
+  try {
+    const response = await fetch(`/api/video-jobs/${currentVideoJobId}`);
+    if (!response.ok) {
+      console.error("Error al consultar estado de video");
+      return;
+    }
+
+    const job = await response.json();
+
+    videoBadge.textContent = formatVideoStatus(job.status);
+    videoBadge.className = `status-badge ${job.status}`;
+
+    videoStage.textContent = job.stage || "";
+    videoLog.textContent = job.log_tail || "";
+    videoLog.scrollTop = videoLog.scrollHeight;
+
+    if (job.status === "done") {
+      clearInterval(videoPollingInterval);
+      videoResultArea.classList.remove("hidden");
+      btnVideoReset.classList.remove("hidden");
+
+      if (job.video_output) {
+        btnUseVideoOutput.addEventListener("click", () => {
+          folderInput.value = job.video_output;
+          switchTab("composition");
+          document.querySelector("h2")?.scrollIntoView({ behavior: "smooth" });
+        });
+      }
+    } else if (job.status === "error") {
+      clearInterval(videoPollingInterval);
+      videoErrorArea.classList.remove("hidden");
+      videoErrorText.textContent = job.error || "Error desconocido";
+      btnVideoReset.classList.remove("hidden");
+    }
+  } catch (error) {
+    console.error("Error polling video:", error);
+  }
+}
+
+function formatVideoStatus(status) {
+  const labels = {
+    pending: "⏳ Pendiente",
+    processing: "🎬 Procesando video",
+    done: "✅ Listo",
+    error: "❌ Error",
+  };
+  return labels[status] || status;
+}
+
+btnVideoReset.addEventListener("click", () => {
+  currentVideoJobId = null;
+  if (videoPollingInterval) {
+    clearInterval(videoPollingInterval);
+  }
+  videoStatusSection.classList.add("hidden");
+  videoFormSection.classList.remove("hidden");
+  videoForm.reset();
+  videoLog.textContent = "";
+  videoResultArea.classList.add("hidden");
+  videoErrorArea.classList.add("hidden");
+  btnVideoReset.classList.add("hidden");
+});
 
 btnReset.addEventListener("click", () => {
   currentJobId = null;
