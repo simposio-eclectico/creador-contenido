@@ -1,196 +1,265 @@
-# Flujo de uso: de fotos a contenido
+# Flujo de uso: de video y fotos a contenido
 
-## 🎬 Escenario 1: Tienes un video (estándar)
+## 🎯 Nuevo flujo integrado (recomendado)
+
+Ahora puedes hacer todo en una sola interfaz web con dos pestañas:
+
+### Flujo A: Video → Composición (2 pestañas)
 
 ```
-1. selector-fotogramas/
-   ├── generate.py --input video.mp4 --output mi-video-procesado/
-   └── (genera metadata.json con embeddings + thumbs + full)
+PASO 1: python3 server.py
+        Abre http://localhost:5000
 
-2. creador-contenido/
-   ├── server.py
-   │   └── http://localhost:5000
-   │       Carpeta: /ruta/a/mi-video-procesado
-   │       Letra: [tus frases]
-   │       Procesar →
-   └── (automáticamente: salta generate, va directo a main.py)
-       └── Resultado: review.html interactivo
+PASO 2: TAB "🎬 Video"
+        Sube tu video (MP4/MOV/MKV)
+        ↓
+        Sistema procesa en background:
+        - Extrae fotogramas
+        - Calcula embeddings CLIP
+        - Agrupa casi-duplicados
+        - Detecta rostros
+        ↓
+        (⏳ 30s - 5 min según tamaño video + GPU)
+
+PASO 3: Cuando termine → Botón "✓ Usar en Composición"
+        ↓
+        Auto-cambia a TAB "🎨 Composición"
+        Folder field pre-lleno con output de video
+
+PASO 4: TAB "🎨 Composición"
+        Pega tus frases (una por línea)
+        Elige formato (Instagram 4:5, square, story)
+        Procesar →
+        ↓
+        Sistema:
+        - Rankea fotos por similitud con cada frase (CLIP)
+        - Compone formato final evitando caras
+        - Genera review.html interactivo
+        ↓
+        (⏳ 10-30s)
+
+PASO 5: "📸 Ver resultado" → review.html
+        Para cada frase:
+        - Ves top 5 candidatas
+        - Eliges color, fuente, efecto
+        - Descargas PNG listo para Instagram
+
+TIEMPO TOTAL: 1-10 minutos (todo en la web)
 ```
-
-**Tiempo aprox:** 30s - 2 min (según cantidad de fotos y GPU disponible)
 
 ---
 
-## 📸 Escenario 2: Tienes fotos crudas (sin procesar)
+## 📝 Flujo B: Carpeta existente → Composición
+
+Si ya tienes fotos procesadas o una carpeta de fotos crudas:
 
 ```
-1. Carpeta local con fotos:
-   /Users/tu-usuario/Dropbox/fotos-evento/
-   ├── IMG_0001.jpg
-   ├── IMG_0002.jpg
-   ├── ... (100+ fotos)
-   └── (SIN metadata.json)
+TAB "🎨 Composición"
+  ① Folder: /ruta/a/mi-carpeta-fotos
+  ② Letra: [tus frases]
+  ③ Procesar →
+     ↓
+     ¿Tiene metadata.json?
+     ├─ SÍ → va directo a main.py (~10-30s)
+     └─ NO → corre generate_from_folder.py primero
+             (procesa fotos crudas, ~2-5 min)
+  ④ "📸 Ver resultado"
+```
 
-2. creador-contenido/
-   ├── server.py
-   │   └── http://localhost:5000
-   │       Carpeta: /Users/tu-usuario/Dropbox/fotos-evento
-   │       Letra: [tus frases]
-   │       Procesar →
-   │
-   ├── El servidor automáticamente:
-   │   ├── Detecta que NO hay metadata.json
-   │   ├── Corre: generate_from_folder.py
-   │   │   └── Crea: /Users/tu-usuario/Dropbox/fotos-evento_procesado/
-   │   │       ├── metadata.json (con embeddings)
-   │   │       ├── thumbs/
-   │   │       ├── full/
-   │   │       └── selected/
-   │   │
-   │   └── Corre: main.py
-   │       └── Resultado en: fotos-evento_procesado/creator/
-   │           └── review.html interactivo
-   │
-   └── Tú ves el log en vivo:
-       Procesando carpeta de fotos...
-       ✓ Encontradas 245 imagenes
-       ✓ Metricas visuales
-       ✓ Embeddings CLIP
-       ✓ Agrupando casi-duplicados
-       ✓ Deteccion de rostros
-       245 imagenes -> 73 fotogramas finales
-       
-       ✓ Generacion completada
-       
-       Ejecutando main.py...
-       Rankeando candidatas por frase...
-       Componiendo formato instagram_4_5...
-       ✓ Pipeline completado con éxito
-       
-       [review.html listo para ver]
+---
+
+## 🎬 Escenario antiguo (CLI, aún funciona): Tienes un video
+
+**(Solo si prefieres CLI)**
+
+```bash
+# Paso 1: Procesar video con selector-fotogramas (CLI)
+python3 video_processor/generate.py \
+  --input video.mp4 \
+  --output mi-video-procesado/
+
+# Paso 2: Abrir web para composición
+python3 server.py
+# Tab "Composición":
+#   Folder: ./mi-video-procesado
+#   Letra: [tus frases]
+#   Procesar → review.html
+```
+
+**Tiempo aprox:** Video: 1-3 min + Composición: 10-30s
+
+---
+
+## 📸 Escenario antiguo (CLI): Tienes fotos crudas (sin procesar)
+
+**(Ahora recomendamos usar la web, pero aquí va el flujo CLI si lo prefieres)**
+
+```bash
+# Paso 1: Procesar carpeta de fotos crudas (CLI)
+python3 generate_from_folder.py \
+  --input /Users/tu-usuario/fotos-evento \
+  --output ./fotos-evento-procesado
+
+# Paso 2: Usar en web
+python3 server.py
+# Tab "Composición":
+#   Folder: ./fotos-evento-procesado
+#   Letra: [tus frases]
+#   Procesar → review.html
+```
+
+O si quieres todo en CLI:
+
+```bash
+python3 main.py \
+  --images ./fotos-evento-procesado \
+  --lyrics letra.txt \
+  --format instagram_4_5
 ```
 
 **Tiempo aprox:** 2-5 min (generar embeddings toma tiempo; GPU acelera muchísimo)
 
 ---
 
-## 🎨 Escenario 3: Carpeta ya procesada pero necesitas nueva letra
+## 🎨 Escenario 3: Carpeta ya procesada + nueva letra
+
+**Ahora es muy simple:**
 
 ```
-1. Tienes /ruta/fotogramas-evento/ con metadata.json previo
+python3 server.py
+Abre http://localhost:5000
 
-2. creador-contenido/
-   ├── server.py → http://localhost:5000
-   │
-   ├── Formulario:
-   │   Carpeta: /ruta/fotogramas-evento
-   │   Letra: [NUEVAS frases]
-   │   Procesar →
-   │
-   ├── El servidor:
-   │   ├── Detecta metadata.json ✓ existe
-   │   ├── Salta generate (va directo a main.py)
-   │   ├── Corre main.py con la nueva letra
-   │   └── Genera nuevo review.html
-   │
-   └── [resultado en ~30s]
+Tab "Composición":
+  Folder: /ruta/fotogramas-evento (con metadata.json)
+  Letra: [NUEVAS frases]
+  Procesar →
+  
+El servidor:
+  ✓ Detecta metadata.json
+  ✓ Salta generate_from_folder
+  ✓ Va directo a main.py
+  ✓ Genera nuevo review.html
+
+[resultado en ~10-30s]
 ```
 
 **Tiempo aprox:** 10-30s (solo main.py, sin recalcular embeddings)
 
 ---
 
-## 🔄 Flujo detallado en el navegador
+## 🔄 Flujo detallado en el navegador (dos pestañas)
 
 ```
-┌─────────────────────────────────────────┐
-│ PÁGINA: http://localhost:5000           │
-├─────────────────────────────────────────┤
-│                                         │
-│ 📁 Ruta de carpeta:   [/Users/...    ] │
-│ 📝 Letra:             [frase 1...   ] │
-│ 📐 Formato:           [instagram 4:5] │
-│ ⚙️  Opciones avanzadas (⏺)              │
-│                                         │
-│                [Procesar →]             │
-│                                         │
-└─────────────────────────────────────────┘
-            ↓ clic en "Procesar →"
-┌─────────────────────────────────────────┐
-│ ESTADO: ⏳ Pendiente                      │
-│ ETAPA:  Iniciando...                   │
-│                                         │
-│ (log en vivo)                           │
-│ ✓ Carpeta ya tiene metadata.json       │
-│ Ejecutando main.py...                  │
-│ Rankeando candidatas por frase...      │
-│ Componiendo formato instagram_4_5...   │
-│ ...                                     │
-│                                         │
-│                                         │
-│           [esperando...]                │
-│                                         │
-└─────────────────────────────────────────┘
-            ↓ después de N segundos
-┌─────────────────────────────────────────┐
-│ ESTADO: ✅ Listo                         │
-│ ETAPA:  (completado)                   │
-│                                         │
-│ (log completo)                          │
-│ ✓ Generación completada                │
-│ ✓ Pipeline completado con éxito        │
-│                                         │
-│     [📸 Ver resultado →]                │
-│ (abre review.html en nueva pestaña)    │
-│                                         │
-│     [Volver a intentar]                 │
-│                                         │
-└─────────────────────────────────────────┘
-            ↓ clic en "Ver resultado →"
-┌─────────────────────────────────────────┐
-│ REVIEW.HTML (nueva pestaña)             │
-│                                         │
-│ Galería interactiva con:                │
-│ • Miniatura de cada frase               │
-│ • Top 5 candidatas por frase            │
-│ • Editor de tipografía en vivo          │
-│ • Preview de composición                │
-│ • Botón "Descargar PNG"                 │
-│                                         │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ http://localhost:5000                        │
+├──────────────────┬──────────────────────────┤
+│ [🎬 Video]      [🎨 Composición]            │
+├──────────────────┴──────────────────────────┤
+│                                              │
+│ TAB 1: VIDEO                                 │
+│ ┌──────────────────────────────────────┐    │
+│ │ Selecciona archivo: [sube_video.mp4] │    │
+│ │           [Procesar video →]         │    │
+│ └──────────────────────────────────────┘    │
+│                                              │
+│ ESTADO: 🎬 Procesando video...              │
+│ (log en vivo)                               │
+│ ✓ Extrayendo fotogramas                    │
+│ ✓ Embeddings CLIP                          │
+│ ✓ Clustering DBSCAN                        │
+│ ✓ Detección de rostros                     │
+│                                              │
+│ ✅ Listo!                                    │
+│ [✓ Usar en Composición →]                  │
+│                                              │
+└──────────────────────────────────────────────┘
+        ↓ clic en "Usar en Composición"
+        Auto-cambia a TAB 2
+┌──────────────────────────────────────────────┐
+│ http://localhost:5000                        │
+├──────────────────┬──────────────────────────┤
+│ [🎬 Video]      [🎨 Composición] ← ACTIVO   │
+├──────────────────┴──────────────────────────┤
+│                                              │
+│ TAB 2: COMPOSICIÓN                           │
+│ ┌──────────────────────────────────────┐    │
+│ │ Carpeta: [/jobs/.../video_output] ✓ │    │
+│ │ Letra: [Frase 1                   ] │    │
+│ │        [Frase 2                   ] │    │
+│ │ Formato: [instagram 4:5 ✓]         │    │
+│ │        [Procesar →]                │    │
+│ └──────────────────────────────────────┘    │
+│                                              │
+│ ESTADO: ⏳ Pendiente                         │
+│ ETAPA:  Iniciando...                       │
+│                                              │
+│ (log en vivo)                               │
+│ ✓ Carpeta tiene metadata.json              │
+│ Ejecutando main.py...                      │
+│ Rankeando candidatas...                    │
+│ Componiendo formato...                     │
+│                                              │
+│ ✅ Listo!                                    │
+│     [📸 Ver resultado →]                    │
+│     [Volver a intentar]                     │
+│                                              │
+└──────────────────────────────────────────────┘
+        ↓ clic en "Ver resultado →"
+┌──────────────────────────────────────────────┐
+│ REVIEW.HTML (nueva pestaña)                  │
+│                                              │
+│ Galería interactiva:                         │
+│ • Miniatura de cada frase                   │
+│ • Top 5 candidatas por frase                │
+│ • Editor: tipografía, color, efecto         │
+│ • Preview en vivo                           │
+│ • [Descargar PNG]                           │
+│                                              │
+└──────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🎯 Caso de uso real: evento de fotos
+## 🎯 Caso de uso real: producción ágil de contenido
 
 ```
 LUNES:
-  Revisas 500 fotos del evento con selector-fotogramas
-  → Marcas 200 como favoritos
-  → Descargas respaldo JSON
+  Grabas video del evento (~5 min)
 
 MARTES:
-  Escribes letras para Instagram
-
-MIÉRCOLES:
   ① python3 server.py
   ② Abres http://localhost:5000
-  ③ Pegues tu lista de letras
-  ④ Seleccionas archivo de favoritos (respaldo.json)
-  ⑤ Eliges formato + opciones
-  ⑥ Procesar →
-  ⑦ Esperas a que termine
-  ⑧ Haces clic en "Ver resultado"
+  
+  TAB "Video":
+  ③ Subes video del evento
+  ④ Procesar → [esperas 2-5 min]
+  ⑤ ✓ Usar en Composición
+  
+  TAB "Composición" (auto-lleno folder):
+  ⑥ Pegas letras de Instagram
+  ⑦ Procesar → [esperas 10-30s]
+  ⑧ "Ver resultado" → review.html
+  
+  EDITOR INTERACTIVO:
   ⑨ Para cada frase:
-     • Ves 5 candidatas
-     • Eliges color, fuente, efecto
-     • Descargas PNG listo para Instagram
-  ⑩ En 10 minutos tienes todas tus piezas compostas.
+     • Ves 5 candidatas (fotos del video)
+     • Eliges color, tipografía, efecto
+     • Descargas PNG
+  
+  ⑩ En 30 minutos: 10 composiciones listas
 
-JUEVES:
+MIÉRCOLES:
   Subes a Instagram ✨
+  
+TIEMPO TOTAL: ~1 hora (todo en web)
 ```
+
+**Ventajas vs antes:**
+- ✅ Video + Composición integrados (no 2 herramientas)
+- ✅ Sin línea de comandos (todo con clicks)
+- ✅ Auto-detección: si carpeta no tiene metadata → procesa automáticamente
+- ✅ Log en vivo para saber qué pasa
+- ✅ Tab 1 → Tab 2 automático
 
 ---
 

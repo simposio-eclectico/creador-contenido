@@ -1,16 +1,17 @@
-# Creador de contenido (lyrics → imagenes)
+# Creador de Contenido (video & lyrics → composiciones para redes)
 
-Segunda etapa del flujo, despues de [selector-fotogramas](../selector-fotogramas):
-toma una carpeta ya curada (favoritos exportados de ese visor, o directamente
-su `metadata.json` completo) y una letra, y propone que imagen va mejor con
-cada frase, componiendo el resultado listo para redes.
+Herramienta integrada de dos etapas para convertir videos o carpetas de fotos en contenido listo para redes:
+
+1. **🎬 Pestaña 1 (Video):** Procesa un video en fotogramas con embeddings
+2. **🎨 Pestaña 2 (Composición):** Asocia frases con fotos y compone para formato (Instagram 4:5, cuadrado, story)
+
+Incluye [selector-fotogramas](../selector-fotogramas) integrado, así que puedes hacer todo en una sola interfaz web.
 
 ## Requisitos
 
 - Python 3.9+
-- Una carpeta generada por `selector-fotogramas/generate.py` **con embeddings**
-  en `metadata.json` (campo `embedding` por fotograma; ver el README de ese
-  repo para el schema completo).
+- ffmpeg + ffprobe (para procesar videos)
+- GPU recomendada (NVIDIA CUDA o Apple Metal para acelerar embeddings CLIP)
 
 ```bash
 python3 -m pip install -r requirements.txt
@@ -18,32 +19,70 @@ python3 -m pip install -r requirements.txt
 
 ## Interfaz web (recomendado)
 
-La forma más fácil es usar la interfaz web que maneja todo automáticamente:
+La forma más fácil es usar la interfaz web con dos pestañas integradas:
 
 ```bash
-python3 server.py
+./run.sh
+# o: python3 server.py
 ```
 
-Luego abre `http://localhost:5000` en tu navegador. Desde ahí puedes:
+Luego abre `http://localhost:5000` en tu navegador. Verás dos pestañas:
 
-1. Seleccionar una carpeta de fotos (con o sin `metadata.json`).
-2. Pegar la letra (frases, una por línea).
-3. Elegir formato (Instagram 4:5, cuadrado, story).
-4. Configurar opciones avanzadas (device, clustering, detección de rostros, favoritos).
+### 🎬 Pestaña 1: Video
+1. Sube un archivo de video (MP4, MOV, MKV, etc.)
+2. El sistema procesa el video en fotogramas con embeddings CLIP
+3. Genera: `metadata.json`, thumbnails, visor interactivo
+4. Al terminar, botón "✓ Usar en Composición" te lleva a la Pestaña 2
+
+### 🎨 Pestaña 2: Composición
+1. **Carpeta de fotos:** usa la salida de la Pestaña 1, o una carpeta local (con o sin `metadata.json`)
+2. **Letra:** pega tus frases (una por línea) o sube archivo `.txt`
+3. **Formato:** Instagram 4:5, cuadrado, story
+4. **Opciones:** modo automático/manual, device (GPU/CPU), top-k, detectar rostros, favoritos, etc.
 5. El servidor automáticamente:
-   - Detecta si la carpeta tiene `metadata.json`.
-   - Si no, corre `generate_from_folder.py` primero.
-   - Encadena automáticamente a `main.py`.
-   - Muestra un log en vivo y al terminar te da acceso al `review.html`.
+   - Si la carpeta NO tiene `metadata.json` → corre `generate_from_folder.py` primero
+   - Si la carpeta SÍ tiene `metadata.json` → va directo a `main.py`
+   - Genera `review.html` interactivo donde puedes elegir imagen, tipografía, color y efecto por frase
 
-## Línea de comandos
+## Flujos de uso comunes
 
-Si prefieres usar los scripts directamente desde terminal:
+### Flujo A: Video → Composición (integrado, recomendado)
+```
+1. python3 server.py
+2. Abre http://localhost:5000
+3. Tab "Video": sube tu video MP4/MOV → procesa automáticamente
+4. Botón "✓ Usar en Composición" → Tab "Composición"
+5. Tab "Composición": pega frases → procesa → review.html
+```
+**Tiempo total:** 2-10 min (según tamaño video + GPU)
 
-### 1. Procesar una carpeta de fotos sin metadata
+### Flujo B: Carpeta existente → Composición
+```
+1. python3 server.py
+2. Abre http://localhost:5000
+3. Tab "Composición": selecciona carpeta de fotos + pega frases
+4. Si carpeta NO tiene metadata.json → genera automáticamente
+5. review.html listo
+```
+**Tiempo:** 30s - 5 min (según cantidad fotos)
 
-Si tienes una carpeta de fotos que no ha sido procesada por selector-fotogramas,
-puedes usar `generate_from_folder.py` para prepararla:
+### Flujo C: Línea de comandos (para scripts/automatización)
+
+Si prefieres usar los scripts directamente desde terminal (útil para CI/CD o batch processing):
+
+#### 2a. Procesar video en CLI
+
+Si prefieres no usar la web, puedes correr selector-fotogramas directamente:
+
+```bash
+python3 video_processor/generate.py \
+  --input clip.mp4 \
+  --output ./mi-video-procesado
+```
+
+Genera `metadata.json`, embeddings, thumbs, y visor interactivo en `./mi-video-procesado/`.
+
+#### 2b. Procesar carpeta de fotos en CLI
 
 ```bash
 python3 generate_from_folder.py \
@@ -51,18 +90,16 @@ python3 generate_from_folder.py \
   --output ./mi-galeria-procesada
 ```
 
-Esto genera la estructura de `metadata.json` con embeddings OpenCLIP y clustering.
-
-Parámetros útiles:
+Parámetros:
 
 ```bash
 python3 generate_from_folder.py --input fotos/ --output salida/ \
-  --cluster-eps 0.08 \          # distancia coseno para agrupar duplicados (bajo=mas fotos)
-  --no-faces \                  # desactiva deteccion de rostros
-  --device cuda                 # auto | cpu | cuda | mps
+  --cluster-eps 0.08 \          # bajo=más fotos diferentes
+  --device cuda \               # auto | cpu | cuda | mps
+  --no-faces                    # desactiva detección de rostros
 ```
 
-### 2. Componer el contenido
+#### 2c. Componer contenido (CLI)
 
 ```bash
 python3 main.py \
