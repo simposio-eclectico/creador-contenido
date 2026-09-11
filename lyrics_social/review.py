@@ -63,7 +63,7 @@ TEMPLATE = """<!doctype html>
 </head>
 <body>
 <h1>Asociaciones frase &rarr; imagen</h1>
-<p>Eleg&iacute; la imagen y el estilo del texto por frase; todo se redibuja al instante en el navegador.</p>
+<p>Elige la imagen y el estilo del texto por frase; todo se redibuja al instante en el navegador.</p>
 <div class="toolbar"><button onclick="copySelection()">Copiar selecci&oacute;n actual (JSON)</button></div>
 {lines}
 <script>
@@ -407,7 +407,7 @@ LINE_TEMPLATE = """
 <section class="line">
   <div class="preview">
     <canvas id="canvas-{index}"></canvas>
-    <div class="drag-hint">Arrastr&aacute; la foto en la vista previa para reencuadrarla (el texto se mueve con los controles de posici&oacute;n)</div>
+    <div class="drag-hint">Arrastra la foto en la vista previa para reencuadrarla (el texto se mueve con los controles de posici&oacute;n)</div>
     <button onclick="downloadLine({index})">Descargar PNG</button>
   </div>
   <div class="panel">

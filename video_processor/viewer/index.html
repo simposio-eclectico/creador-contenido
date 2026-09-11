@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Hoja de contactos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <h1>Hoja de contactos</h1>
+      <div id="video-name" class="muted"></div>
+
+      <label class="field">
+        Buscar tiempo
+        <input id="search-time" type="text" placeholder="mm:ss" />
+      </label>
+
+      <label class="field">
+        Score minimo <span id="score-value">0</span>
+        <input id="score-range" type="range" min="0" max="10" step="0.1" value="0" />
+      </label>
+
+      <div class="field checks">
+        <label><input type="checkbox" id="filter-favorites" /> Solo favoritos</label>
+        <label><input type="checkbox" id="filter-faces" /> Solo rostros</label>
+        <label><input type="checkbox" id="filter-flash" /> Solo flashes</label>
+      </div>
+
+      <label class="field">
+        Orden
+        <select id="sort-mode">
+          <option value="time">Tiempo</option>
+          <option value="score">Score</option>
+        </select>
+      </label>
+
+      <label class="field">
+        Vista
+        <select id="view-mode">
+          <option value="grid">Cuadricula</option>
+          <option value="storyboard">Storyboard</option>
+        </select>
+      </label>
+
+      <div class="stats" id="stats"></div>
+
+      <button id="export-btn" class="primary">Exportar favoritos</button>
+
+      <div class="field backup-block">
+        <div id="backup-status" class="muted"></div>
+        <button id="backup-connect-btn" class="secondary">Configurar respaldo automatico</button>
+        <button id="backup-download-btn" class="secondary">Descargar respaldo JSON</button>
+        <button id="backup-restore-btn" class="secondary">Restaurar desde JSON</button>
+        <input type="file" id="backup-restore-input" accept="application/json" class="hidden" />
+      </div>
+
+      <div class="help">
+        <b>Atajos</b>
+        <div>&larr; &rarr; navegar</div>
+        <div>Espacio favorito</div>
+        <div>Enter ver tamano completo</div>
+        <div>1-5 calificar</div>
+        <div>J / L rafaga anterior/siguiente</div>
+        <div>P fijar frame de rafaga para exportar</div>
+        <div>E exportar</div>
+        <div>Esc cerrar</div>
+      </div>
+    </aside>
+
+    <main id="grid-wrap">
+      <div id="grid"></div>
+      <div id="empty-state" class="muted hidden">Sin resultados con estos filtros.</div>
+    </main>
+  </div>
+
+  <div id="hover-preview" class="hidden"><img id="hover-preview-img" /></div>
+
+  <div id="lightbox" class="hidden">
+    <div id="lightbox-main">
+      <img id="lightbox-img" />
+      <div id="lightbox-meta"></div>
+    </div>
+    <div id="burst-strip"></div>
+  </div>
+
+  <script src="metadata.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
