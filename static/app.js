@@ -318,6 +318,16 @@ const videoErrorArea = document.getElementById("video-error-area");
 const videoErrorText = document.getElementById("video-error-text");
 const btnVideoReset = document.getElementById("btn-video-reset");
 const btnUseVideoOutput = document.getElementById("btn-use-video-output");
+let lastVideoOutput = null;
+
+btnUseVideoOutput.addEventListener("click", () => {
+  if (lastVideoOutput) {
+    folderInput.value = lastVideoOutput;
+    switchTab("composition");
+    // Scroll to folder field
+    folderInput.scrollIntoView({ behavior: "smooth" });
+  }
+});
 
 videoForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -385,11 +395,7 @@ async function pollVideoStatus() {
       btnVideoReset.classList.remove("hidden");
 
       if (job.video_output) {
-        btnUseVideoOutput.addEventListener("click", () => {
-          folderInput.value = job.video_output;
-          switchTab("composition");
-          document.querySelector("h2")?.scrollIntoView({ behavior: "smooth" });
-        });
+        lastVideoOutput = job.video_output;
       }
     } else if (job.status === "error") {
       clearInterval(videoPollingInterval);

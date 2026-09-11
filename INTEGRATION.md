@@ -92,12 +92,22 @@ GET    /jobs/&lt;id&gt;/video-output/&lt;path&gt; → serve processed files
 
 ---
 
-## Phase 4: Form Linking & State (TODO)
+## Phase 4: Form Linking & State ✅
 
-Tasks:
-- [ ] Implement "Use this output in Tab 2" button logic
-- [ ] Auto-populate folder field when video job completes
-- [ ] Test state handoff Tab 1 → Tab 2
+**Completed:**
+- [x] Implemented "Use this output in Tab 2" button
+  - Button appears when video job completes
+  - On click: fills `#folder` input with video output path
+  - Switches to Tab 2 (composition)
+  - Scrolls to folder field
+- [x] State handoff Tab 1 → Tab 2
+  - `lastVideoOutput` variable stores path
+  - Single event listener avoids duplicates
+  - User can immediately enter lyrics and submit
+- [x] Verified form independence
+  - Tab 1 can run without Tab 2
+  - Tab 2 can run without Tab 1
+  - Both can chain (video output → composition)
 
 ---
 
