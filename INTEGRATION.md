@@ -37,14 +37,32 @@ creador-contenido/
 
 ---
 
-## Phase 2: Backend Expansion (TODO)
+## Phase 2: Backend Expansion ✅
 
-Tasks:
-- [ ] Add `POST /api/upload-video` route to `server.py`
-- [ ] Add `GET /api/video-jobs/<job_id>` route
-- [ ] Implement `run_video_job()` function
-- [ ] Test video processing subprocess calls
-- [ ] Verify file upload handling
+**Completed:**
+- [x] Add `POST /api/upload-video` route to `server.py`
+  - Receives multipart video file upload
+  - Creates job with uuid, saves file
+  - Returns job_id for polling
+- [x] Add `GET /api/video-jobs/<job_id>` route
+  - Polls video processing status
+  - Returns status, logs, output_dir on completion
+- [x] Implement `run_video_job()` function
+  - Spawns subprocess: `video_processor/generate.py`
+  - Redirects stdout/stderr to log.txt
+  - Handles timeouts and errors
+- [x] Add `GET /jobs/<job_id>/video-output/<path>` route
+  - Serves video processing outputs (metadata.json, thumbs, etc.)
+  - Guard against path traversal
+- [x] Import `secure_filename` from werkzeug
+  - Sanitizes uploaded filenames
+
+**New Routes Summary:**
+```
+POST   /api/upload-video           → submit video, get job_id
+GET    /api/video-jobs/&lt;id&gt;      → poll status, get output_dir
+GET    /jobs/&lt;id&gt;/video-output/&lt;path&gt; → serve processed files
+```
 
 ---
 

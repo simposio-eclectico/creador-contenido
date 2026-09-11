@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
+from werkzeug.utils import secure_filename
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 JOBS_DIR = PROJECT_ROOT / "jobs"
@@ -196,6 +197,59 @@ def run_job(job_id: str, params: dict):
         update_job(job_id, status="error", error=f"Error interno: {e}")
 
 
+def run_video_job(job_id: str, video_path: str):
+    """Ejecuta video_processor/generate.py en un hilo de fondo."""
+    job = get_job(job_id)
+    job_dir = JOBS_DIR / job_id
+    output_dir = job_dir / "video_output"
+    log_path = job_dir / "log.txt"
+
+    def log_write(msg: str, end="\n"):
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(msg + end)
+
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        update_job(job_id, status="processing", stage="Procesando video...")
+
+        cmd = [
+            sys.executable,
+            str(PROJECT_ROOT / "video_processor" / "generate.py"),
+            "--input", str(video_path),
+            "--output", str(output_dir),
+        ]
+
+        log_write(f"Procesando video: {Path(video_path).name}")
+        log_write(f"Comando: {' '.join(cmd)}")
+        log_write("")
+
+        result = subprocess.run(
+            cmd,
+            stdout=open(log_path, "a"),
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=3600,
+        )
+
+        if result.returncode != 0:
+            update_job(
+                job_id,
+                status="error",
+                error=f"Video processing failed (exit {result.returncode})",
+            )
+            return
+
+        log_write("")
+        log_write("✓ Video processing complete")
+        update_job(job_id, status="done", video_output=str(output_dir))
+
+    except subprocess.TimeoutExpired:
+        update_job(job_id, status="error", error="Video processing timeout")
+    except Exception as e:
+        update_job(job_id, status="error", error=f"Error: {e}")
+
+
 # --------------------------------------------------------------------------
 # Rutas Flask
 # --------------------------------------------------------------------------
@@ -276,6 +330,62 @@ def get_status(job_id):
     })
 
 
+@app.route("/api/upload-video", methods=["POST"])
+def upload_video():
+    """Recibe archivo de video y inicia procesamiento."""
+    if "video" not in request.files:
+        return jsonify({"error": "Sin archivo de video"}), 400
+
+    file = request.files["video"]
+    if file.filename == "":
+        return jsonify({"error": "Archivo vacío"}), 400
+
+    job_id = str(uuid.uuid4())
+    job_dir = JOBS_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = secure_filename(file.filename)
+    input_path = job_dir / filename
+    file.save(input_path)
+
+    with JOBS_LOCK:
+        JOBS[job_id] = {
+            "type": "video",
+            "status": "pending",
+            "stage": "Iniciando...",
+            "log_path": str(job_dir / "log.txt"),
+            "video_output": None,
+            "error": None,
+        }
+
+    thread = threading.Thread(
+        target=run_video_job, args=(job_id, str(input_path)), daemon=True
+    )
+    thread.start()
+
+    return jsonify({"job_id": job_id}), 202
+
+
+@app.route("/api/video-jobs/<job_id>")
+def get_video_status(job_id):
+    """Retorna estado del job de procesamiento de video."""
+    job = get_job(job_id)
+    if not job or job.get("type") != "video":
+        return jsonify({"error": "Job no encontrado"}), 404
+
+    log_path = Path(job["log_path"])
+    log_tail = read_log_tail(log_path, lines=100)
+
+    return jsonify({
+        "job_id": job_id,
+        "status": job["status"],
+        "stage": job["stage"],
+        "log_tail": log_tail,
+        "video_output": job.get("video_output"),
+        "error": job.get("error"),
+    })
+
+
 @app.route("/api/browse")
 def browse_folders():
     """Lista subcarpetas de un directorio, para el selector visual de carpetas."""
@@ -321,6 +431,24 @@ def serve_review(job_id, subpath):
     target = (base / subpath).resolve()
 
     # Guard contra path traversal
+    try:
+        target.relative_to(base)
+    except ValueError:
+        return "Acceso denegado", 403
+
+    return send_from_directory(base, subpath)
+
+
+@app.route("/jobs/<job_id>/video-output/<path:subpath>")
+def serve_video_output(job_id, subpath):
+    """Sirve archivos desde salida de procesamiento video."""
+    job = get_job(job_id)
+    if not job or not job.get("video_output"):
+        return "Job no encontrado", 404
+
+    base = Path(job["video_output"]).resolve()
+    target = (base / subpath).resolve()
+
     try:
         target.relative_to(base)
     except ValueError:
