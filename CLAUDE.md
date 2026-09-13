@@ -172,7 +172,7 @@ The system was unified with selector-fotogramas via a multi-tab interface:
 2. Sample video at low fps → compute entropy + contrast + saliency + **motion** (frame-to-frame diff) score (`visual_signal.py`)
 3. Combine both signals on a common time grid using `--audio-weight` (0=visual only, 1=audio only), then greedily pick N non-overlapping windows of `--duration` seconds that maximize the combined score (`highlight.py`)
 4. Render each window as a vertical clip (`story` 1080x1920 or `square` 1080x1080) via ffmpeg center-crop + scale (`clip_render.py`)
-5. Optionally apply a fadeout (`--fade-out` seconds) of audio + video at the end of each clip, either to black or dissolving into a fixed image (`clip_render.py::apply_fade`)
+5. Optionally apply a fadeout (`--fade-out` seconds) of audio + video at the end of each clip, either to black or dissolving into a fixed image with configurable placement (`clip_render.py::apply_fade`)
 6. If `--subtitles`: transcribe the **full video once** with local Whisper (`transcribe.py`, language selectable via `--language`), then per-window filter/re-zero segments into a `.srt`. The web flow always passes `--skip-burn` here — burning happens in a separate confirmation step (below) so the user can review/edit the transcribed text first; direct CLI use without `--skip-burn` burns immediately with the raw Whisper output, same as before.
 
 **Two-stage subtitle review (web only):**
@@ -195,8 +195,16 @@ The system was unified with selector-fotogramas via a multi-tab interface:
 python3 reel_extractor/extract.py --input video.mp4 --output ./reels_output \
   --duration 30 --count 3 --audio-weight 0.5 --format story \
   --subtitles --whisper-model base --subtitle-font im_fell \
-  --fade-out 3 --fade-target image --fade-image outro.png
+  --fade-out 3 --fade-target image --fade-image outro.png \
+  --fade-image-fit contain-width --fade-background-color black
 ```
+
+**Fade-to-image options** (`--fade-target=image`):
+- `--fade-image-fit cover` (default) — Image scales and crops to fill the entire area (CSS `background-size: cover`). May crop image edges.
+- `--fade-image-fit contain-width` — Image scales to match the width; height may be padded with background color.
+- `--fade-image-fit contain-height` — Image scales to match the height; width may be padded with background color.
+- `--fade-background-color` — Background fill color for padding in contain modes (hex: `000000`, `ffffff`, etc., or named: `black`, `red`). Default: `black`.
+- The fade occurs smoothly over `--fade-out` seconds: the original video fades out while the image simultaneously fades in.
 
 **Backend routes:** `POST /api/upload-reel-video`, `GET /api/reel-jobs/<id>`, `POST /api/reel-jobs/<id>/confirm-subtitles`, `GET /jobs/<id>/reel-output/<path>` — same job orchestration pattern (`threading.Thread` + `JOBS` dict) as Tab 2's video processing. The upload route also accepts an optional `fade_image` file field for `fade_target=image`. Job state machine when subtitles are on: `pending → processing → awaiting_review → processing → done`.
 

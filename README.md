@@ -164,8 +164,19 @@ python3 reel_extractor/extract.py --input video.mp4 --output salida/ \
   --fade-out 3 \           # segundos de fadeout audio+video al final (0 = desactivado)
   --fade-target black \    # black (fundido a negro) | image (fundido a --fade-image)
   --fade-image outro.png \ # requerido solo si --fade-target=image
+  --fade-image-fit cover \ # cover | contain-width | contain-height (default: cover)
+  --fade-background-color black \ # color para fondos en contain mode
   --skip-burn              # solo genera .srt (sin quemar), para revisar/editar el texto antes
 ```
+
+#### Modos de fundido a imagen (`--fade-target=image`)
+
+- **`--fade-image-fit cover`** (default): La imagen se escala y recorta para rellenar completamente el área (como CSS `background-size: cover`). Puede recortar los bordes de la imagen.
+- **`--fade-image-fit contain-width`**: La imagen se escala para que coincida el ancho, manteniendo su proporción. El alto puede quedar vacío, que se rellena con el color de fondo.
+- **`--fade-image-fit contain-height`**: La imagen se escala para que coincida el alto, manteniendo su proporción. El ancho puede quedar vacío, que se rellena con el color de fondo.
+- **`--fade-background-color`**: Color de fondo para usar en los modos `contain-*` (ej: `black`, `ffffff` para blanco, `ff0000` para rojo). Default: `black`.
+
+El fundido ocurre de forma suave durante los últimos `--fade-out` segundos: el video original se desvanece gradualmente mientras la imagen aparece simultáneamente.
 
 ### Editar subtítulos antes de quemarlos (CLI)
 

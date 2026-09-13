@@ -66,6 +66,14 @@ def main():
     )
     ap.add_argument("--fade-image", help="Ruta a imagen fija para --fade-target=image")
     ap.add_argument(
+        "--fade-image-fit", default="cover", choices=["cover", "contain-width", "contain-height"],
+        help="Como ajustar la imagen en --fade-target=image (default 'cover')",
+    )
+    ap.add_argument(
+        "--fade-background-color", default="black",
+        help="Color de fondo para --fade-target=image en modo contain (ej: 'black', 'ffffff', default 'black')",
+    )
+    ap.add_argument(
         "--skip-burn", action="store_true",
         help="Genera .srt y guarda los segmentos en metadata.json pero NO quema "
              "los subtitulos todavia (para permitir editarlos antes, ver burn_subs.py)",
@@ -140,6 +148,8 @@ def main():
                 fade_duration=min(args.fade_out, window_duration),
                 fade_target=args.fade_target, fade_image_path=args.fade_image,
                 format_name=args.format,
+                image_fit=args.fade_image_fit,
+                background_color=args.fade_background_color,
             )
             raw_clip_path.unlink()
         else:
@@ -190,6 +200,8 @@ def main():
         "subtitle_font": args.subtitle_font,
         "fade_out": args.fade_out,
         "fade_target": args.fade_target if args.fade_out > 0 else None,
+        "fade_image_fit": args.fade_image_fit if args.fade_out > 0 else None,
+        "fade_background_color": args.fade_background_color if args.fade_out > 0 else None,
         "subtitles_pending_review": bool(args.subtitles and args.skip_burn),
         "reels": reels,
     }

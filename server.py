@@ -286,8 +286,12 @@ def run_reel_job(job_id: str, video_path: str, params: dict):
         fade_out = float(params.get("fade_out", 0) or 0)
         if fade_out > 0:
             cmd.extend(["--fade-out", str(fade_out), "--fade-target", params.get("fade_target", "black")])
-            if params.get("fade_target") == "image" and params.get("fade_image_path"):
-                cmd.extend(["--fade-image", str(params["fade_image_path"])])
+            if params.get("fade_target") == "image":
+                if params.get("fade_image_path"):
+                    cmd.extend(["--fade-image", str(params["fade_image_path"])])
+                cmd.extend(["--fade-image-fit", params.get("fade_image_fit", "cover")])
+                if params.get("fade_background_color"):
+                    cmd.extend(["--fade-background-color", str(params["fade_background_color"])])
 
         log_write(f"Procesando video para reels: {Path(video_path).name}")
         log_write(f"Comando: {' '.join(cmd)}")
@@ -560,6 +564,8 @@ def upload_reel_video():
     language = request.form.get("language", "es")
     fade_out = request.form.get("fade_out", "0")
     fade_target = request.form.get("fade_target", "black")
+    fade_image_fit = request.form.get("fade_image_fit", "cover")
+    fade_background_color = request.form.get("fade_background_color", "black")
 
     job_id = str(uuid.uuid4())
     job_dir = JOBS_DIR / job_id
@@ -599,6 +605,8 @@ def upload_reel_video():
         "fade_out": fade_out,
         "fade_target": fade_target,
         "fade_image_path": str(fade_image_path) if fade_image_path else None,
+        "fade_image_fit": fade_image_fit,
+        "fade_background_color": fade_background_color,
     }
     thread = threading.Thread(
         target=run_reel_job, args=(job_id, str(input_path), params), daemon=True

@@ -128,11 +128,13 @@ def burn_subtitles(clip_path, segments, out_path, font_name=None):
     return out_path
 
 
-def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_target="black", fade_image_path=None, format_name="story"):
+def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_target="black", fade_image_path=None, format_name="story", image_fit="cover", background_color="black"):
     """Aplica un fadeout de audio y video en los ultimos fade_duration
-    segundos del clip. fade_target: "black" (fade a negro, filtro 'fade'
-    nativo) o "image" (disuelve hacia una imagen fija superpuesta con
-    'overlay', requiere fade_image_path).
+    segundos del clip.
+
+    fade_target: "black" (fade a negro) o "image" (disuelve a imagen con transicion suave)
+    image_fit: "cover" (crop like CSS), "contain-width" (fit width), "contain-height" (fit height)
+    background_color: color para rellenar en contain modes (ej: "black", "ffffff", etc)
     """
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -141,16 +143,25 @@ def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_targe
 
     if fade_target == "image" and fade_image_path:
         target_w, target_h = FORMATS[format_name]
+
+        if image_fit == "cover":
+            scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}"
+        elif image_fit == "contain-width":
+            scale_filter = f"scale={target_w}:-1,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color={background_color}"
+        elif image_fit == "contain-height":
+            scale_filter = f"scale=-1:{target_h},pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color={background_color}"
+        else:
+            scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}"
+
         vf_complex = (
-            f"[1:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
-            f"crop={target_w}:{target_h},format=yuva420p,"
-            f"fade=t=in:st=0:d={fade_duration:.3f}:alpha=1[imgfade];"
-            f"[0:v][imgfade]overlay=enable='gte(t,{fade_start:.3f})'[vout]"
+            f"[1:v]{scale_filter},format=yuva420p,"
+            f"fade=t=in:st={fade_start:.3f}:d={fade_duration:.3f}:alpha=1[imgfade];"
+            f"[0:v][imgfade]overlay[vout]"
         )
         run([
             "ffmpeg", "-y",
             "-i", str(clip_path),
-            "-loop", "1", "-t", f"{fade_duration:.3f}", "-i", str(fade_image_path),
+            "-loop", "1", "-t", f"{clip_duration:.3f}", "-i", str(fade_image_path),
             "-filter_complex", vf_complex,
             "-map", "[vout]", "-map", "0:a",
             "-af", afade,
@@ -159,7 +170,7 @@ def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_targe
             str(out_path),
         ])
     else:
-        vf = f"fade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}:color=black"
+        vf = f"fade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}:color={background_color}"
         run([
             "ffmpeg", "-y", "-i", str(clip_path),
             "-vf", vf,

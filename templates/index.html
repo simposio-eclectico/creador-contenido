@@ -325,6 +325,16 @@
                 <div id="reel-fade-image-field" class="hidden">
                   <label for="reel-fade-image">Imagen para el fundido:</label>
                   <input type="file" id="reel-fade-image" name="fade_image" accept="image/*">
+
+                  <label for="reel-fade-image-fit">Cómo colocar la imagen:</label>
+                  <select id="reel-fade-image-fit" name="fade_image_fit">
+                    <option value="cover" selected>Cover (rellenar completamente, puede recortar)</option>
+                    <option value="contain-width">Ajustar al ancho (mantiene proporción)</option>
+                    <option value="contain-height">Ajustar al alto (mantiene proporción)</option>
+                  </select>
+
+                  <label for="reel-fade-background-color">Color de fondo:</label>
+                  <input type="color" id="reel-fade-background-color" name="fade_background_color" value="#000000">
                 </div>
               </div>
             </fieldset>

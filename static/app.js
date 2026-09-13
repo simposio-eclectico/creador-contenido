@@ -529,6 +529,8 @@ reelForm.addEventListener("submit", async (e) => {
   formData.append("fade_target", fadeTarget);
   if (reelFadeEnabled.checked && fadeTarget === "image") {
     formData.append("fade_image", document.getElementById("reel-fade-image").files[0]);
+    formData.append("fade_image_fit", document.getElementById("reel-fade-image-fit").value);
+    formData.append("fade_background_color", document.getElementById("reel-fade-background-color").value);
   }
 
   try {
