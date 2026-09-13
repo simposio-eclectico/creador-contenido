@@ -147,32 +147,48 @@ Each status change updates `JOBS[job_id]` under `JOBS_LOCK`.
 - **Job isolation:** Each job has unique UUID, own directory; can run in parallel (daemon threads)
 - **Input validation:** Folder existence + is_dir; lyrics non-empty; favorites path existence check
 
-## Integration: selector-fotogramas Unification (In Progress)
+## Integration: selector-fotogramas Unification (Complete)
 
-**Status:** Phase 1 ✅ Complete (files moved) | Phase 2-6 → In Progress
+The system was unified with selector-fotogramas via a multi-tab interface:
+- **Tab 1 (Composición):** Frames + lyrics → compositions (original creador-contenido flow)
+- **Tab 2 (Video):** Video → frames (selector-fotogramas, integrated)
+- **Tab 3 (Reels):** Video → highlight clips with subtitles (see below)
 
-The system is being unified with selector-fotogramas via a two-tab interface:
-- **Tab 1:** Video → frames (selector-fotogramas, integrated)
-- **Tab 2:** Frames + lyrics → compositions (creador-contenido, current)
-
-**What's changed:**
-- `video_processor/` subdirectory now contains selector-fotogramas' code:
+**What changed:**
+- `video_processor/` subdirectory contains selector-fotogramas' code:
   - `video_processor/generate.py` — video processing CLI
   - `video_processor/viewer/` — frame browser UI
 - `.gitignore` updated to ignore video files and test outputs
-- See `INTEGRATION.md` for detailed phase-by-phase progress
+- See `INTEGRATION.md` for the full phase-by-phase history
 
-**What's NOT changed (backward compatible):**
-- All CLI tools work unchanged (`main.py`, `generate_from_folder.py`)
-- Web server routes for composition remain identical
-- Existing workflows (folder → lyrics → review.html) unaffected
+**Backward compatible:** all CLI tools (`main.py`, `generate_from_folder.py`) and existing web routes work unchanged.
 
-**Next phases:**
-1. Backend: new routes for video upload (`/api/upload-video`, `/api/video-jobs/<id>`)
-2. Frontend: tab widget in `templates/index.html`
-3. Form linking: Tab 1 output → Tab 2 input auto-population
+## Reel Extraction (`reel_extractor/`)
 
-See `INTEGRATION.md` for detailed progress tracking and implementation checklist.
+**Tab 3** takes a video and extracts the N most "important" moments as short vertical clips ("reels"), optionally with burned-in subtitles.
+
+**Pipeline (`reel_extractor/extract.py`):**
+1. Extract audio → compute RMS energy + spectral flux score per time window (`audio_signal.py`)
+2. Sample video at low fps → compute entropy + contrast + saliency + **motion** (frame-to-frame diff) score (`visual_signal.py`)
+3. Combine both signals on a common time grid using `--audio-weight` (0=visual only, 1=audio only), then greedily pick N non-overlapping windows of `--duration` seconds that maximize the combined score (`highlight.py`)
+4. Render each window as a vertical clip (`story` 1080x1920 or `square` 1080x1080) via ffmpeg center-crop + scale (`clip_render.py`)
+5. If `--subtitles`: transcribe the **full video once** with local Whisper (`transcribe.py`), then per-window filter/re-zero segments into a `.srt`, and burn them into the clip via chained `drawtext` filters (`clip_render.py::burn_subtitles`)
+
+**Key design decisions:**
+- Uses `openai-whisper` (not faster-whisper) — reuses the `torch` install already required for OpenCLIP, no second heavy runtime
+- Transcribes once on the full video, not per-clip — Whisper's model-load overhead dominates for short clips, and timestamps are already absolute so slicing per-window is just an offset/filter operation
+- Subtitle burn-in uses **`drawtext`, not the `subtitles` filter** — `subtitles` requires libass, which isn't compiled into every ffmpeg build (notably some Homebrew installs); `drawtext` (needs libfreetype) is more commonly available. If neither is compiled in, `extract.py` degrades gracefully: it logs a warning and keeps the `.srt` file, skipping only the burned-in version — check `ffmpeg -filters | grep draw` if burned-in clips are missing
+- `reel_extractor/_ffmpeg_utils.py` duplicates `run()`/`probe_duration()` from `video_processor/generate.py` rather than importing across sibling packages (avoids sys.path coupling between independently-invokable CLI tools)
+- If the video is shorter than the requested duration, or fewer non-overlapping windows exist than `--count`, the pipeline returns what it can find and logs a warning rather than failing
+
+**CLI:**
+```bash
+python3 reel_extractor/extract.py --input video.mp4 --output ./reels_output \
+  --duration 30 --count 3 --audio-weight 0.5 --format story \
+  --subtitles --whisper-model base
+```
+
+**Backend routes:** `POST /api/upload-reel-video`, `GET /api/reel-jobs/<id>`, `GET /jobs/<id>/reel-output/<path>` — same job orchestration pattern (`threading.Thread` + `JOBS` dict) as Tab 2's video processing.
 
 ## Extending the Matching Algorithm
 
@@ -206,15 +222,26 @@ This is an explicit extension point in the design.
 - Check `face_position` is valid in metadata.json (should be [x, y] or null)
 - Verify format config in `lyrics_social/composer.py::FORMATS` matches the format you selected
 
+**"Reels generate but subtitles aren't burned in (only .srt appears)"**
+- Your ffmpeg build lacks `drawtext` (needs libfreetype). Check with `ffmpeg -filters | grep draw`
+- This is a graceful degradation, not a bug — the job still completes and the `.srt` is usable standalone
+- Reinstall ffmpeg with a build that includes libfreetype to enable burned-in subtitles
+
+**"Whisper produces repetitive/nonsense subtitles"**
+- Usually means low audio quality or the `tiny` model on ambiguous audio — try `--whisper-model base` or `small`
+- Synthetic/TTS audio can trigger repetition loops in Whisper more than natural speech
+
 ## Dependencies
 
 See `requirements.txt`:
 - `torch` ≥2.1 (heavy)
 - `open_clip_torch` ≥2.24
+- `openai-whisper` ≥20231117 (reel subtitles; reuses the `torch` install above)
 - `Pillow` ≥10.0
 - `scipy`, `scikit-learn` (clustering, image metrics)
 - `opencv-contrib-python` (face detection)
 - `Flask` ≥3.0
+- System binary: `ffmpeg`/`ffprobe` (video processing + reel rendering; `drawtext` filter needs libfreetype for burned-in subtitles)
 
 No dev dependencies (tests, linters) yet — contributions welcome.
 

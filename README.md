@@ -1,41 +1,39 @@
 # Creador de Contenido (video & lyrics → composiciones para redes)
 
-Herramienta integrada de dos etapas para convertir videos o carpetas de fotos en contenido listo para redes:
+Herramienta integrada con tres pestañas para convertir videos o carpetas de fotos en contenido listo para redes:
 
-1. **🎬 Pestaña 1 (Video):** Procesa un video en fotogramas con embeddings
-2. **🎨 Pestaña 2 (Composición):** Asocia frases con fotos y compone para formato (Instagram 4:5, cuadrado, story)
+1. **🎨 Composición:** Asocia frases con fotos y compone para formato (Instagram 4:5, cuadrado, story)
+2. **🎬 Video:** Procesa un video en fotogramas con embeddings
+3. **✂️ Reels:** Extrae automáticamente los momentos más destacados de un video como clips verticales, con subtítulos generados por Whisper
 
 Incluye [selector-fotogramas](../selector-fotogramas) integrado, así que puedes hacer todo en una sola interfaz web.
 
 ## Requisitos
 
 - Python 3.9+
-- ffmpeg + ffprobe (para procesar videos)
-- GPU recomendada (NVIDIA CUDA o Apple Metal para acelerar embeddings CLIP)
+- ffmpeg + ffprobe (para procesar videos y extraer reels)
+  - Para subtítulos quemados en los reels, ademas necesitas ffmpeg compilado con `drawtext` (libfreetype); si falta, el sistema sigue funcionando pero solo entrega el archivo `.srt` sin quemar
+- GPU recomendada (NVIDIA CUDA o Apple Metal para acelerar embeddings CLIP y transcripción Whisper)
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
+La primera vez que uses subtítulos, Whisper descargará el modelo elegido (~75MB-500MB según el tamaño) a `~/.cache/whisper`.
+
 ## Interfaz web (recomendado)
 
-La forma más fácil es usar la interfaz web con dos pestañas integradas:
+La forma más fácil es usar la interfaz web con tres pestañas integradas:
 
 ```bash
 ./run.sh
 # o: python3 server.py
 ```
 
-Luego abre `http://localhost:5000` en tu navegador. Verás dos pestañas:
+Luego abre `http://localhost:5000` en tu navegador. Verás tres pestañas:
 
-### 🎬 Pestaña 1: Video
-1. Sube un archivo de video (MP4, MOV, MKV, etc.)
-2. El sistema procesa el video en fotogramas con embeddings CLIP
-3. Genera: `metadata.json`, thumbnails, visor interactivo
-4. Al terminar, botón "✓ Usar en Composición" te lleva a la Pestaña 2
-
-### 🎨 Pestaña 2: Composición
-1. **Carpeta de fotos:** usa la salida de la Pestaña 1, o una carpeta local (con o sin `metadata.json`)
+### 🎨 Pestaña Composición
+1. **Carpeta de fotos:** usa la salida de la pestaña Video, o una carpeta local (con o sin `metadata.json`)
 2. **Letra:** pega tus frases (una por línea) o sube archivo `.txt`
 3. **Formato:** Instagram 4:5, cuadrado, story
 4. **Opciones:** modo automático/manual, device (GPU/CPU), top-k, detectar rostros, favoritos, etc.
@@ -43,6 +41,27 @@ Luego abre `http://localhost:5000` en tu navegador. Verás dos pestañas:
    - Si la carpeta NO tiene `metadata.json` → corre `generate_from_folder.py` primero
    - Si la carpeta SÍ tiene `metadata.json` → va directo a `main.py`
    - Genera `review.html` interactivo donde puedes elegir imagen, tipografía, color y efecto por frase
+
+### 🎬 Pestaña Video
+1. Sube un archivo de video (MP4, MOV, MKV, etc.)
+2. El sistema procesa el video en fotogramas con embeddings CLIP
+3. Genera: `metadata.json`, thumbnails, visor interactivo
+4. Al terminar, botón "✓ Usar en Composición" te lleva a la pestaña Composición
+
+### ✂️ Pestaña Reels
+1. Sube un archivo de video
+2. Configura:
+   - **Duración de cada reel:** 15-60 segundos
+   - **Cantidad de reels:** cuántos clips extraer
+   - **Peso audio vs. visual:** qué tanto influye el volumen/energía del audio (risas, aplausos, picos) vs. el movimiento e interés visual de la escena al elegir los momentos destacados
+   - **Formato:** story (1080x1920) o cuadrado (1080x1080)
+   - **Subtítulos:** activa/desactiva, y elige el modelo Whisper (tiny/base/small)
+3. El sistema:
+   - Analiza audio (energía/picos de volumen) y video (entropía, contraste, movimiento, saliencia) del clip completo
+   - Combina ambas señales según el peso elegido y selecciona los mejores momentos no superpuestos
+   - Recorta cada momento al formato vertical elegido
+   - Si activaste subtítulos, transcribe con Whisper (local, sin conexión a internet) y genera un `.srt` por reel, además de una versión con subtítulos quemados en el video (si tu ffmpeg soporta `drawtext`)
+4. Descarga cada reel individualmente (con o sin subtítulos quemados) o el `.srt` para editar/subir aparte
 
 ## Flujos de uso comunes
 
@@ -106,6 +125,47 @@ python3 main.py \
   --images ./mi-galeria-procesada \
   --lyrics letra.txt \
   --format instagram_4_5
+```
+
+#### 2d. Extraer reels destacados (CLI)
+
+```bash
+python3 reel_extractor/extract.py \
+  --input video.mp4 \
+  --output ./reels_output \
+  --duration 30 \
+  --count 3 \
+  --audio-weight 0.5 \
+  --format story \
+  --subtitles \
+  --whisper-model base
+```
+
+Parámetros:
+
+```bash
+python3 reel_extractor/extract.py --input video.mp4 --output salida/ \
+  --duration 30 \          # duracion de cada reel en segundos (15-60)
+  --count 3 \              # cantidad de reels a extraer
+  --audio-weight 0.5 \     # 0=solo visual, 1=solo audio, al elegir momentos destacados
+  --format story \         # story (1080x1920) | square (1080x1080)
+  --subtitles \            # genera .srt + version con subtitulos quemados
+  --whisper-model base \   # tiny | base | small
+  --language es            # idioma para Whisper
+```
+
+Genera:
+
+```
+reels_output/
+├── clips/
+│   ├── 01.mp4              # reel #1 (vertical, sin subtitulos)
+│   ├── 01_subtitled.mp4    # reel #1 con subtitulos quemados (si --subtitles y ffmpeg soporta drawtext)
+│   └── ...
+├── subs/
+│   ├── 01.srt              # subtitulos del reel #1 (si --subtitles)
+│   └── ...
+└── metadata.json           # ventanas elegidas, scores, rutas de cada archivo
 ```
 
 ## Uso
