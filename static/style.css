@@ -738,6 +738,7 @@ footer {
 
 .reel-review-card {
   display: flex;
+  align-items: flex-start;
   gap: 1.5rem;
   background: var(--bg-dark);
   border: 1px solid var(--border);
@@ -800,11 +801,17 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  /* Cap the list height to the video's height so the row doesn't grow
+     taller than the video and force it to stretch/deform; scroll instead. */
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 0.3rem;
 }
 
 .segment-row-editable {
   display: grid;
-  grid-template-columns: auto 1fr 28px;
+  /* Tiempos ocupan 1/3, texto ocupa 2/3 del ancho disponible */
+  grid-template-columns: 1fr 2fr 28px;
   gap: 0.4rem;
   align-items: start;
   background: rgba(255,255,255,0.02);
@@ -817,10 +824,14 @@ footer {
   display: flex;
   gap: 0.3rem;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .segment-time-input {
-  width: 60px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
   background: var(--bg-darker);
   color: var(--fg-text);
   border: 1px solid var(--border-light);
@@ -828,7 +839,6 @@ footer {
   padding: 0.3rem;
   font-size: max(8px, 0.8em);
   font-family: monospace;
-  flex-shrink: 0;
 }
 
 .segment-time-input::placeholder {
