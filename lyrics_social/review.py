@@ -54,19 +54,23 @@ TEMPLATE = """<!doctype html>
   .controls select, .controls input[type=color] {{ width: 100%; padding: 0.3rem; }}
   .controls input[type=range] {{ width: 100%; }}
   .effect-color, .intensity {{ display: none; }}
+  .meta-info {{ margin-bottom: 1.5rem; padding: 0.75rem; background: #1a1a1a; border-left: 3px solid #4ade80; border-radius: 4px; }}
+  .meta-info code {{ background: #0f0f0f; padding: 0.2rem 0.4rem; border-radius: 2px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #4ade80; word-break: break-all; }}
   .toolbar {{ margin-bottom: 1.5rem; }}
   button {{ background: #4ade80; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; }}
   .text-edit {{ width: 100%; box-sizing: border-box; resize: vertical; min-height: 3.2rem; background: #1a1a1a; color: #eee; border: 1px solid #333; border-radius: 4px; padding: 0.5rem; font-family: inherit; font-size: 0.9rem; margin-bottom: 1rem; }}
   .align-group {{ display: flex; gap: 0.3rem; }}
   .align-group button {{ flex: 1; background: #2a2a2a; color: #eee; padding: 0.3rem; font-weight: 400; }}
   .align-group button.active {{ background: #4ade80; color: #111; font-weight: 600; }}
-  .drag-hint {{ font-size: 0.65rem; color: #777; margin-top: 0.4rem; }}
   .preview canvas {{ cursor: move; }}
 </style>
 </head>
 <body>
 <h1>Asociaciones frase &rarr; imagen</h1>
 <p>Elige la imagen y el estilo del texto por frase; todo se redibuja al instante en el navegador.</p>
+<div class="meta-info">
+  <small>Carpeta de fotos: <code>{images_source}</code></small>
+</div>
 <div class="toolbar"><button onclick="copySelection()">Copiar selecci&oacute;n actual (JSON)</button></div>
 {lines}
 <script>
@@ -410,7 +414,6 @@ LINE_TEMPLATE = """
 <section class="line">
   <div class="preview">
     <canvas id="canvas-{index}"></canvas>
-    <div class="drag-hint">Arrastra la foto en la vista previa para reencuadrarla (el texto se mueve con los controles de posici&oacute;n)</div>
     <button onclick="downloadLine({index})">Descargar PNG</button>
   </div>
   <div class="panel">
@@ -498,7 +501,7 @@ THUMB_TEMPLATE = """
 """
 
 
-def write_review_html(output_dir, results, format_name):
+def write_review_html(output_dir, results, format_name, images_source=None):
     canvas_w, canvas_h = FORMATS[format_name]
 
     lines_html = []
@@ -559,5 +562,6 @@ def write_review_html(output_dir, results, format_name):
         canvas_h=canvas_h,
         band_frac=BAND_FRAC,
         fonts_json=json.dumps(list(FONTS), ensure_ascii=False),
+        images_source=html.escape(str(images_source or "desconocida")),
     )
     Path(output_dir, "review.html").write_text(html_out, encoding="utf-8")

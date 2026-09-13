@@ -161,7 +161,7 @@ def main():
     }
     (output_dir / "associations.json").write_text(json.dumps(associations, indent=2, ensure_ascii=False))
 
-    write_review_html(output_dir, results, format_name=args.format)
+    write_review_html(output_dir, results, format_name=args.format, images_source=images_dir)
 
     print(f"\nListo. Abre {output_dir / 'review.html'} en tu navegador.")
     print(f"{len(lines)} frases procesadas -> {output_dir}")
