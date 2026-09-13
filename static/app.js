@@ -612,11 +612,24 @@ function renderReelReview(reels) {
     card.className = "reel-review-card";
     card.dataset.reelId = r.id;
 
+    // Video player con overlay de subtítulos
+    const playerContainer = document.createElement("div");
+    playerContainer.className = "reel-player-container";
+
     const video = document.createElement("video");
     video.src = r.clip_url;
     video.controls = true;
-    card.appendChild(video);
+    video.addEventListener("timeupdate", () => {
+      updateSubtitlePreview(card, video.currentTime);
+    });
+    playerContainer.appendChild(video);
 
+    const subtitleOverlay = document.createElement("div");
+    subtitleOverlay.className = "subtitle-overlay";
+    playerContainer.appendChild(subtitleOverlay);
+    card.appendChild(playerContainer);
+
+    // Editor de segmentos
     const editor = document.createElement("div");
     editor.className = "segments-editor";
 
@@ -625,34 +638,159 @@ function renderReelReview(reels) {
     editor.appendChild(title);
 
     const segments = r.segments || [];
+    const segmentsContainer = document.createElement("div");
+    segmentsContainer.className = "segments-list";
+
     if (segments.length === 0) {
       const empty = document.createElement("p");
       empty.className = "no-segments";
       empty.textContent = "No se detectó texto hablado en este reel.";
-      editor.appendChild(empty);
+      segmentsContainer.appendChild(empty);
     } else {
       segments.forEach((seg, idx) => {
         const row = document.createElement("div");
-        row.className = "segment-row";
+        row.className = "segment-row-editable";
 
-        const time = document.createElement("span");
-        time.className = "segment-time";
-        time.textContent = `${seg.start.toFixed(1)}s–${seg.end.toFixed(1)}s`;
-        row.appendChild(time);
+        // Tiempo de inicio
+        const startLabel = document.createElement("label");
+        startLabel.className = "segment-time-label";
+        startLabel.textContent = "Inicio:";
+        const startInput = document.createElement("input");
+        startInput.type = "number";
+        startInput.step = "0.1";
+        startInput.min = "0";
+        startInput.value = seg.start.toFixed(2);
+        startInput.className = "segment-time-input";
+        startInput.dataset.segIndex = idx;
+        startInput.dataset.timeField = "start";
+        row.appendChild(startLabel);
+        row.appendChild(startInput);
 
+        // Tiempo de fin
+        const endLabel = document.createElement("label");
+        endLabel.className = "segment-time-label";
+        endLabel.textContent = "Fin:";
+        const endInput = document.createElement("input");
+        endInput.type = "number";
+        endInput.step = "0.1";
+        endInput.min = "0";
+        endInput.value = seg.end.toFixed(2);
+        endInput.className = "segment-time-input";
+        endInput.dataset.segIndex = idx;
+        endInput.dataset.timeField = "end";
+        row.appendChild(endLabel);
+        row.appendChild(endInput);
+
+        // Texto
         const textarea = document.createElement("textarea");
         textarea.value = seg.text;
+        textarea.className = "segment-text-input";
         textarea.dataset.segIndex = idx;
-        textarea.dataset.segStart = seg.start;
-        textarea.dataset.segEnd = seg.end;
+        textarea.addEventListener("input", () => updateSubtitlePreview(card));
         row.appendChild(textarea);
 
-        editor.appendChild(row);
+        // Botón eliminar
+        const btnDelete = document.createElement("button");
+        btnDelete.className = "btn-delete-segment";
+        btnDelete.textContent = "✕";
+        btnDelete.type = "button";
+        btnDelete.addEventListener("click", () => {
+          row.remove();
+          updateSubtitlePreview(card);
+        });
+        row.appendChild(btnDelete);
+
+        segmentsContainer.appendChild(row);
       });
+
+      // Botón para agregar nueva línea
+      const btnAddSegment = document.createElement("button");
+      btnAddSegment.className = "btn-add-segment";
+      btnAddSegment.textContent = "+ Agregar línea";
+      btnAddSegment.type = "button";
+      btnAddSegment.addEventListener("click", () => {
+        const newIdx = segmentsContainer.querySelectorAll(".segment-row-editable").length;
+        const newRow = document.createElement("div");
+        newRow.className = "segment-row-editable";
+
+        const startLabel = document.createElement("label");
+        startLabel.className = "segment-time-label";
+        startLabel.textContent = "Inicio:";
+        const startInput = document.createElement("input");
+        startInput.type = "number";
+        startInput.step = "0.1";
+        startInput.min = "0";
+        startInput.value = "0";
+        startInput.className = "segment-time-input";
+        startInput.dataset.segIndex = newIdx;
+        startInput.dataset.timeField = "start";
+        newRow.appendChild(startLabel);
+        newRow.appendChild(startInput);
+
+        const endLabel = document.createElement("label");
+        endLabel.className = "segment-time-label";
+        endLabel.textContent = "Fin:";
+        const endInput = document.createElement("input");
+        endInput.type = "number";
+        endInput.step = "0.1";
+        endInput.min = "0";
+        endInput.value = "1";
+        endInput.className = "segment-time-input";
+        endInput.dataset.segIndex = newIdx;
+        endInput.dataset.timeField = "end";
+        newRow.appendChild(endLabel);
+        newRow.appendChild(endInput);
+
+        const textarea = document.createElement("textarea");
+        textarea.placeholder = "Escribe el texto del subtítulo...";
+        textarea.className = "segment-text-input";
+        textarea.dataset.segIndex = newIdx;
+        textarea.addEventListener("input", () => updateSubtitlePreview(card));
+        newRow.appendChild(textarea);
+
+        const btnDelete = document.createElement("button");
+        btnDelete.className = "btn-delete-segment";
+        btnDelete.textContent = "✕";
+        btnDelete.type = "button";
+        btnDelete.addEventListener("click", () => {
+          newRow.remove();
+          updateSubtitlePreview(card);
+        });
+        newRow.appendChild(btnDelete);
+
+        segmentsContainer.insertBefore(newRow, btnAddSegment);
+        updateSubtitlePreview(card);
+      });
+      segmentsContainer.appendChild(btnAddSegment);
     }
 
+    editor.appendChild(segmentsContainer);
     card.appendChild(editor);
     reelReviewList.appendChild(card);
+  });
+}
+
+function updateSubtitlePreview(card, currentTime = 0) {
+  const overlay = card.querySelector(".subtitle-overlay");
+  overlay.innerHTML = "";
+
+  const rows = card.querySelectorAll(".segment-row-editable");
+  rows.forEach((row) => {
+    const startInput = row.querySelector("input[data-time-field='start']");
+    const endInput = row.querySelector("input[data-time-field='end']");
+    const textarea = row.querySelector(".segment-text-input");
+
+    const start = parseFloat(startInput.value) || 0;
+    const end = parseFloat(endInput.value) || 0;
+    const text = textarea.value.trim();
+
+    // Mostrar subtítulo si está en el rango de tiempo actual
+    if (currentTime >= start && currentTime <= end && text) {
+      const subtitle = document.createElement("div");
+      subtitle.className = "subtitle-text";
+      subtitle.textContent = text;
+      overlay.appendChild(subtitle);
+    }
   });
 }
 
@@ -663,12 +801,19 @@ btnConfirmSubtitles.addEventListener("click", async () => {
   reelReviewList.querySelectorAll(".reel-review-card").forEach((card) => {
     const reelId = parseInt(card.dataset.reelId, 10);
     const segments = [];
-    card.querySelectorAll(".segment-row textarea").forEach((textarea) => {
-      segments.push({
-        start: parseFloat(textarea.dataset.segStart),
-        end: parseFloat(textarea.dataset.segEnd),
-        text: textarea.value.trim(),
-      });
+    card.querySelectorAll(".segment-row-editable").forEach((row) => {
+      const startInput = row.querySelector("input[data-time-field='start']");
+      const endInput = row.querySelector("input[data-time-field='end']");
+      const textarea = row.querySelector(".segment-text-input");
+      const text = textarea.value.trim();
+
+      if (text) {  // Solo incluir segmentos que tengan texto
+        segments.push({
+          start: parseFloat(startInput.value) || 0,
+          end: parseFloat(endInput.value) || 0,
+          text: text,
+        });
+      }
     });
     reelsPayload.push({ id: reelId, segments });
   });
