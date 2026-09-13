@@ -41,8 +41,11 @@ TEMPLATE = """<!doctype html>
   .preview button {{ margin-top: 0.5rem; width: 100%; }}
   .panel {{ flex: 1; min-width: 320px; }}
   .panel h2 {{ font-weight: 400; margin-top: 0; }}
-  .candidates {{ display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1rem; }}
-  .thumb {{ width: 90px; cursor: pointer; border: 2px solid transparent; border-radius: 6px; padding: 3px; }}
+  .candidates {{ display: flex; gap: 0.6rem; overflow-x: auto; overflow-y: hidden; margin-bottom: 1rem; padding-bottom: 0.5rem; min-height: 130px; flex-wrap: nowrap; }}
+  .candidates::-webkit-scrollbar {{ height: 6px; }}
+  .candidates::-webkit-scrollbar-track {{ background: #1a1a1a; border-radius: 4px; }}
+  .candidates::-webkit-scrollbar-thumb {{ background: #4ade80; border-radius: 4px; }}
+  .thumb {{ width: 90px; flex-shrink: 0; cursor: pointer; border: 2px solid transparent; border-radius: 6px; padding: 3px; }}
   .thumb img {{ width: 100%; border-radius: 4px; display: block; }}
   .thumb .meta {{ font-size: 0.65rem; color: #aaa; margin-top: 0.2rem; }}
   .thumb.selected {{ border-color: #4ade80; }}
