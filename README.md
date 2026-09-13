@@ -12,7 +12,7 @@ Incluye [selector-fotogramas](../selector-fotogramas) integrado, así que puedes
 
 - Python 3.9+
 - ffmpeg + ffprobe (para procesar videos y extraer reels)
-  - Para subtítulos quemados en los reels, ademas necesitas ffmpeg compilado con `drawtext` (libfreetype); si falta, el sistema sigue funcionando pero solo entrega el archivo `.srt` sin quemar
+  - Para subtítulos quemados en los reels, se recomienda `brew install ffmpeg-full` (incluye `drawtext`/libfreetype); se detecta automáticamente y se prioriza sobre el ffmpeg normal si está instalado. Sin esto, el sistema sigue funcionando pero solo entrega el archivo `.srt` sin quemar
 - GPU recomendada (NVIDIA CUDA o Apple Metal para acelerar embeddings CLIP y transcripción Whisper)
 
 ```bash
@@ -55,12 +55,14 @@ Luego abre `http://localhost:5000` en tu navegador. Verás tres pestañas:
    - **Cantidad de reels:** cuántos clips extraer
    - **Peso audio vs. visual:** qué tanto influye el volumen/energía del audio (risas, aplausos, picos) vs. el movimiento e interés visual de la escena al elegir los momentos destacados
    - **Formato:** story (1080x1920) o cuadrado (1080x1080)
-   - **Subtítulos:** activa/desactiva, y elige el modelo Whisper (tiny/base/small)
+   - **Subtítulos:** activa/desactiva, elige el modelo Whisper (tiny/base/small) y la tipografía para quemarlos (default **IM Fell**, la misma que usa el editor de composiciones; también Georgia, Arial, Helvetica, Courier, Impact)
+   - **Fadeout:** activa/desactiva el desvanecido de audio e imagen en los últimos segundos de cada reel, elige la duración, y si el video se desvanece a negro o hacia una imagen fija que subís (ideal para un logo/outro)
 3. El sistema:
    - Analiza audio (energía/picos de volumen) y video (entropía, contraste, movimiento, saliencia) del clip completo
    - Combina ambas señales según el peso elegido y selecciona los mejores momentos no superpuestos
    - Recorta cada momento al formato vertical elegido
-   - Si activaste subtítulos, transcribe con Whisper (local, sin conexión a internet) y genera un `.srt` por reel, además de una versión con subtítulos quemados en el video (si tu ffmpeg soporta `drawtext`)
+   - Si activaste fadeout, desvanece audio y video en los últimos segundos (a negro o hacia la imagen elegida)
+   - Si activaste subtítulos, transcribe con Whisper (local, sin conexión a internet) y genera un `.srt` por reel, además de una versión con subtítulos quemados en el video (si tu ffmpeg soporta `drawtext`, ver Requisitos)
 4. Descarga cada reel individualmente (con o sin subtítulos quemados) o el `.srt` para editar/subir aparte
 
 ## Flujos de uso comunes
@@ -138,7 +140,11 @@ python3 reel_extractor/extract.py \
   --audio-weight 0.5 \
   --format story \
   --subtitles \
-  --whisper-model base
+  --whisper-model base \
+  --subtitle-font im_fell \
+  --fade-out 3 \
+  --fade-target image \
+  --fade-image outro.png
 ```
 
 Parámetros:
@@ -151,7 +157,11 @@ python3 reel_extractor/extract.py --input video.mp4 --output salida/ \
   --format story \         # story (1080x1920) | square (1080x1080)
   --subtitles \            # genera .srt + version con subtitulos quemados
   --whisper-model base \   # tiny | base | small
-  --language es            # idioma para Whisper
+  --language es \          # idioma para Whisper
+  --subtitle-font im_fell \ # im_fell (default) | georgia | arial | helvetica | courier | impact
+  --fade-out 3 \           # segundos de fadeout audio+video al final (0 = desactivado)
+  --fade-target black \    # black (fundido a negro) | image (fundido a --fade-image)
+  --fade-image outro.png   # requerido solo si --fade-target=image
 ```
 
 Genera:

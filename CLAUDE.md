@@ -172,23 +172,29 @@ The system was unified with selector-fotogramas via a multi-tab interface:
 2. Sample video at low fps → compute entropy + contrast + saliency + **motion** (frame-to-frame diff) score (`visual_signal.py`)
 3. Combine both signals on a common time grid using `--audio-weight` (0=visual only, 1=audio only), then greedily pick N non-overlapping windows of `--duration` seconds that maximize the combined score (`highlight.py`)
 4. Render each window as a vertical clip (`story` 1080x1920 or `square` 1080x1080) via ffmpeg center-crop + scale (`clip_render.py`)
-5. If `--subtitles`: transcribe the **full video once** with local Whisper (`transcribe.py`), then per-window filter/re-zero segments into a `.srt`, and burn them into the clip via chained `drawtext` filters (`clip_render.py::burn_subtitles`)
+5. Optionally apply a fadeout (`--fade-out` seconds) of audio + video at the end of each clip, either to black or dissolving into a fixed image (`clip_render.py::apply_fade`)
+6. If `--subtitles`: transcribe the **full video once** with local Whisper (`transcribe.py`), then per-window filter/re-zero segments into a `.srt`, and burn them into the clip (post-fade) via chained `drawtext` filters with a selectable font (`clip_render.py::burn_subtitles`)
 
 **Key design decisions:**
 - Uses `openai-whisper` (not faster-whisper) — reuses the `torch` install already required for OpenCLIP, no second heavy runtime
 - Transcribes once on the full video, not per-clip — Whisper's model-load overhead dominates for short clips, and timestamps are already absolute so slicing per-window is just an offset/filter operation
-- Subtitle burn-in uses **`drawtext`, not the `subtitles` filter** — `subtitles` requires libass, which isn't compiled into every ffmpeg build (notably some Homebrew installs); `drawtext` (needs libfreetype) is more commonly available. If neither is compiled in, `extract.py` degrades gracefully: it logs a warning and keeps the `.srt` file, skipping only the burned-in version — check `ffmpeg -filters | grep draw` if burned-in clips are missing
+- Subtitle burn-in uses **`drawtext`, not the `subtitles` filter** — both require `libfreetype`/`libass` respectively, which the *default* Homebrew `ffmpeg` formula does not compile in. **Fix: `brew install ffmpeg-full`** (keg-only, doesn't replace the default `ffmpeg`) — it bundles both. `reel_extractor/_ffmpeg_utils.py::_resolve_binary()` auto-detects `ffmpeg-full` at its Homebrew path (`/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`) and prefers it over the plain `ffmpeg` on PATH; override with `REEL_FFMPEG_BIN`/`REEL_FFPROBE_BIN` env vars if installed elsewhere. If neither build is found, `extract.py` degrades gracefully: it logs a warning and keeps the `.srt` file, skipping only the burned-in version
+- Subtitle font is selectable (`--subtitle-font`, catalog in `reel_extractor/fonts.py`), default **IM Fell DW Pica** — same family as `lyrics_social/review.py`'s canvas text, vendored as a real `.ttf` under `reel_extractor/fonts/` (SIL OFL license) since `drawtext` needs an actual font file, not a CSS font stack
 - `reel_extractor/_ffmpeg_utils.py` duplicates `run()`/`probe_duration()` from `video_processor/generate.py` rather than importing across sibling packages (avoids sys.path coupling between independently-invokable CLI tools)
+- `probe_video_size()` parses ffprobe's `-of json` output (not `csv`) — some videos add extra columns to the csv format (e.g. rotation side-data) that broke a fixed 2-value unpack
 - If the video is shorter than the requested duration, or fewer non-overlapping windows exist than `--count`, the pipeline returns what it can find and logs a warning rather than failing
 
 **CLI:**
 ```bash
 python3 reel_extractor/extract.py --input video.mp4 --output ./reels_output \
   --duration 30 --count 3 --audio-weight 0.5 --format story \
-  --subtitles --whisper-model base
+  --subtitles --whisper-model base --subtitle-font im_fell \
+  --fade-out 3 --fade-target image --fade-image outro.png
 ```
 
-**Backend routes:** `POST /api/upload-reel-video`, `GET /api/reel-jobs/<id>`, `GET /jobs/<id>/reel-output/<path>` — same job orchestration pattern (`threading.Thread` + `JOBS` dict) as Tab 2's video processing.
+**Backend routes:** `POST /api/upload-reel-video`, `GET /api/reel-jobs/<id>`, `GET /jobs/<id>/reel-output/<path>` — same job orchestration pattern (`threading.Thread` + `JOBS` dict) as Tab 2's video processing. The upload route also accepts an optional `fade_image` file field for `fade_target=image`.
+
+**Gotcha hit during development:** when testing manually with a background server process, always confirm you killed the *previous* instance before starting a new one — Flask's dev server fails to bind a busy port and prints "Address already in use" to its own log without crashing the shell job, so stale requests silently hit old code. Check with `lsof -ti:5000` before assuming a fresh start.
 
 ## Extending the Matching Algorithm
 
@@ -224,8 +230,8 @@ This is an explicit extension point in the design.
 
 **"Reels generate but subtitles aren't burned in (only .srt appears)"**
 - Your ffmpeg build lacks `drawtext` (needs libfreetype). Check with `ffmpeg -filters | grep draw`
-- This is a graceful degradation, not a bug — the job still completes and the `.srt` is usable standalone
-- Reinstall ffmpeg with a build that includes libfreetype to enable burned-in subtitles
+- Fix: `brew install ffmpeg-full` — `reel_extractor` auto-detects and prefers it over plain `ffmpeg`
+- This is a graceful degradation, not a bug — the job still completes and the `.srt` is usable standalone even without the fix
 
 **"Whisper produces repetitive/nonsense subtitles"**
 - Usually means low audio quality or the `tiny` model on ambiguous audio — try `--whisper-model base` or `small`
@@ -241,7 +247,8 @@ See `requirements.txt`:
 - `scipy`, `scikit-learn` (clustering, image metrics)
 - `opencv-contrib-python` (face detection)
 - `Flask` ≥3.0
-- System binary: `ffmpeg`/`ffprobe` (video processing + reel rendering; `drawtext` filter needs libfreetype for burned-in subtitles)
+- System binary: `ffmpeg`/`ffprobe` (video processing + reel rendering)
+  - Recommended: `brew install ffmpeg-full` for burned-in subtitle support (`drawtext`/`subtitles` filters, needs libfreetype/libass) — auto-detected if present, see Reel Extraction section above
 
 No dev dependencies (tests, linters) yet — contributions welcome.
 

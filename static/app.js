@@ -471,12 +471,44 @@ reelAudioWeightInput.addEventListener("input", () => {
   reelWeightLabel.textContent = audioWeightPresetLabel(parseInt(reelAudioWeightInput.value, 10));
 });
 
+// --------------------------------------------------------------------------
+// Opciones de fadeout (Tab 3)
+// --------------------------------------------------------------------------
+
+const reelFadeEnabled = document.getElementById("reel-fade-enabled");
+const reelFadeOptions = document.getElementById("reel-fade-options");
+const reelFadeDuration = document.getElementById("reel-fade-duration");
+const reelFadeDurationLabel = document.getElementById("reel-fade-duration-label");
+const reelFadeImageField = document.getElementById("reel-fade-image-field");
+const reelFadeTargetRadios = document.querySelectorAll('input[name="fade_target"]');
+
+reelFadeEnabled.addEventListener("change", () => {
+  reelFadeOptions.classList.toggle("hidden", !reelFadeEnabled.checked);
+});
+
+reelFadeDuration.addEventListener("input", () => {
+  reelFadeDurationLabel.textContent = `${reelFadeDuration.value}s`;
+});
+
+function updateFadeImageFieldVisibility() {
+  const target = document.querySelector('input[name="fade_target"]:checked')?.value;
+  reelFadeImageField.classList.toggle("hidden", target !== "image");
+}
+
+reelFadeTargetRadios.forEach((radio) => radio.addEventListener("change", updateFadeImageFieldVisibility));
+
 reelForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const file = reelVideoInput.files?.[0];
   if (!file) {
     alert("Selecciona un archivo de video");
+    return;
+  }
+
+  const fadeTarget = document.querySelector('input[name="fade_target"]:checked')?.value || "black";
+  if (reelFadeEnabled.checked && fadeTarget === "image" && !document.getElementById("reel-fade-image").files?.[0]) {
+    alert("Selecciona una imagen para el fundido, o elige 'Fundido a negro'");
     return;
   }
 
@@ -488,6 +520,12 @@ reelForm.addEventListener("submit", async (e) => {
   formData.append("format", document.getElementById("reel-format").value);
   formData.append("subtitles", document.getElementById("reel-subtitles").checked ? "1" : "");
   formData.append("whisper_model", document.getElementById("reel-whisper-model").value);
+  formData.append("subtitle_font", document.getElementById("reel-subtitle-font").value);
+  formData.append("fade_out", reelFadeEnabled.checked ? reelFadeDuration.value : "0");
+  formData.append("fade_target", fadeTarget);
+  if (reelFadeEnabled.checked && fadeTarget === "image") {
+    formData.append("fade_image", document.getElementById("reel-fade-image").files[0]);
+  }
 
   try {
     const response = await fetch("/api/upload-reel-video", {
@@ -615,6 +653,9 @@ btnReelReset.addEventListener("click", () => {
   reelStatusSection.classList.add("hidden");
   reelFormSection.classList.remove("hidden");
   reelForm.reset();
+  reelFadeOptions.classList.add("hidden");
+  reelFadeImageField.classList.add("hidden");
+  reelFadeDurationLabel.textContent = "3s";
   reelLog.textContent = "";
   reelResultArea.classList.add("hidden");
   reelGallery.innerHTML = "";

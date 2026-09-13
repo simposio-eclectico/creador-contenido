@@ -274,9 +274,16 @@ def run_reel_job(job_id: str, video_path: str, params: dict):
             "--audio-weight", str(params.get("audio_weight", 0.5)),
             "--format", params.get("format", "story"),
             "--whisper-model", params.get("whisper_model", "base"),
+            "--subtitle-font", params.get("subtitle_font", "im_fell"),
         ]
         if params.get("subtitles"):
             cmd.append("--subtitles")
+
+        fade_out = float(params.get("fade_out", 0) or 0)
+        if fade_out > 0:
+            cmd.extend(["--fade-out", str(fade_out), "--fade-target", params.get("fade_target", "black")])
+            if params.get("fade_target") == "image" and params.get("fade_image_path"):
+                cmd.extend(["--fade-image", str(params["fade_image_path"])])
 
         log_write(f"Procesando video para reels: {Path(video_path).name}")
         log_write(f"Comando: {' '.join(cmd)}")
@@ -468,6 +475,9 @@ def upload_reel_video():
     format_name = request.form.get("format", "story")
     subtitles = request.form.get("subtitles") in ("1", "true", "on")
     whisper_model = request.form.get("whisper_model", "base")
+    subtitle_font = request.form.get("subtitle_font", "im_fell")
+    fade_out = request.form.get("fade_out", "0")
+    fade_target = request.form.get("fade_target", "black")
 
     job_id = str(uuid.uuid4())
     job_dir = JOBS_DIR / job_id
@@ -476,6 +486,13 @@ def upload_reel_video():
     filename = secure_filename(file.filename)
     input_path = job_dir / filename
     file.save(input_path)
+
+    fade_image_path = None
+    fade_image_file = request.files.get("fade_image")
+    if fade_image_file and fade_image_file.filename:
+        fade_image_name = secure_filename(fade_image_file.filename)
+        fade_image_path = job_dir / f"fade_{fade_image_name}"
+        fade_image_file.save(fade_image_path)
 
     with JOBS_LOCK:
         JOBS[job_id] = {
@@ -495,6 +512,10 @@ def upload_reel_video():
         "format": format_name,
         "subtitles": subtitles,
         "whisper_model": whisper_model,
+        "subtitle_font": subtitle_font,
+        "fade_out": fade_out,
+        "fade_target": fade_target,
+        "fade_image_path": str(fade_image_path) if fade_image_path else None,
     }
     thread = threading.Thread(
         target=run_reel_job, args=(job_id, str(input_path), params), daemon=True

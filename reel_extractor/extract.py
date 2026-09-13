@@ -29,7 +29,8 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from reel_extractor._ffmpeg_utils import probe_duration
 from reel_extractor.audio_signal import compute_audio_scores, extract_audio_wav
-from reel_extractor.clip_render import FORMATS, burn_subtitles, render_vertical_clip
+from reel_extractor.clip_render import FORMATS, apply_fade, burn_subtitles, render_vertical_clip
+from reel_extractor.fonts import FONT_CATALOG
 from reel_extractor.highlight import combine_and_score, pick_windows
 from reel_extractor.transcribe import segments_for_window, transcribe_full_video, write_srt
 from reel_extractor.visual_signal import compute_visual_scores, sample_frames_for_analysis
@@ -51,7 +52,23 @@ def main():
     ap.add_argument("--subtitles", action="store_true", help="Genera subtitulos (.srt + quemados) con Whisper")
     ap.add_argument("--whisper-model", default="base", choices=["tiny", "base", "small"])
     ap.add_argument("--language", default="es", help="Idioma para Whisper (default 'es')")
+    ap.add_argument(
+        "--subtitle-font", default="im_fell", choices=sorted(FONT_CATALOG),
+        help="Tipografia para quemar subtitulos (default 'im_fell')",
+    )
+    ap.add_argument(
+        "--fade-out", type=float, default=0.0,
+        help="Segundos de fadeout de audio/video al final de cada reel (0 = desactivado)",
+    )
+    ap.add_argument(
+        "--fade-target", default="black", choices=["black", "image"],
+        help="'black': fade a negro. 'image': disuelve hacia --fade-image",
+    )
+    ap.add_argument("--fade-image", help="Ruta a imagen fija para --fade-target=image")
     args = ap.parse_args()
+
+    if args.fade_out and args.fade_target == "image" and not args.fade_image:
+        sys.exit("--fade-target=image requiere --fade-image")
 
     if not 15 <= args.duration <= 60:
         sys.exit("--duration debe estar entre 15 y 60 segundos")
@@ -106,8 +123,22 @@ def main():
     for i, w in enumerate(windows):
         reel_id = i + 1
         print(f"Renderizando reel #{reel_id} ({args.format}, {w['start']:.1f}s-{w['end']:.1f}s)...")
+        window_duration = w["end"] - w["start"]
+        raw_clip_path = clips_dir / f"{reel_id:02d}_raw.mp4"
+        render_vertical_clip(input_path, w["start"], w["end"], raw_clip_path, format_name=args.format)
+
         clip_path = clips_dir / f"{reel_id:02d}.mp4"
-        render_vertical_clip(input_path, w["start"], w["end"], clip_path, format_name=args.format)
+        if args.fade_out > 0:
+            print(f"Aplicando fadeout ({args.fade_target}) en reel #{reel_id}...")
+            apply_fade(
+                raw_clip_path, clip_path, window_duration,
+                fade_duration=min(args.fade_out, window_duration),
+                fade_target=args.fade_target, fade_image_path=args.fade_image,
+                format_name=args.format,
+            )
+            raw_clip_path.unlink()
+        else:
+            raw_clip_path.rename(clip_path)
 
         reel = {
             "id": reel_id,
@@ -125,10 +156,10 @@ def main():
             write_srt(window_segments, srt_path)
             reel["srt"] = f"subs/{srt_path.name}"
 
-            print(f"Quemando subtitulos en reel #{reel_id}...")
+            print(f"Quemando subtitulos en reel #{reel_id} (fuente: {args.subtitle_font})...")
             burned_path = clips_dir / f"{reel_id:02d}_subtitled.mp4"
             try:
-                burn_subtitles(clip_path, window_segments, burned_path)
+                burn_subtitles(clip_path, window_segments, burned_path, font_name=args.subtitle_font)
                 reel["clip_with_subtitles"] = f"clips/{burned_path.name}"
             except RuntimeError as exc:
                 print(
@@ -146,6 +177,9 @@ def main():
         "requested_count": args.count,
         "audio_weight": args.audio_weight,
         "format": args.format,
+        "subtitle_font": args.subtitle_font,
+        "fade_out": args.fade_out,
+        "fade_target": args.fade_target if args.fade_out > 0 else None,
         "reels": reels,
     }
     (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False))

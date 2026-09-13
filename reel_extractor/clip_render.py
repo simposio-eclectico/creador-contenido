@@ -7,6 +7,7 @@ para consistencia, aunque aqui se aplican a video (ffmpeg) y no a fotos (PIL).
 from pathlib import Path
 
 from ._ffmpeg_utils import run
+from .fonts import resolve_font_path
 
 FORMATS = {
     "story": (1080, 1920),
@@ -83,15 +84,17 @@ def _escape_drawtext(text):
     )
 
 
-def burn_subtitles(clip_path, segments, out_path):
+def burn_subtitles(clip_path, segments, out_path, font_name=None):
     """Quema subtitulos sobre un clip ya renderizado encadenando un filtro
     'drawtext' por segmento (con enable=between(t,start,end)). Se prefiere
     drawtext sobre el filtro 'subtitles' porque este ultimo requiere libass,
-    que no viene habilitado en todas las builds de ffmpeg (p.ej. algunas
-    instalaciones via Homebrew), mientras que drawtext siempre esta disponible.
+    que no viene habilitado en todas las builds de ffmpeg por defecto
+    (p.ej. Homebrew); ver _ffmpeg_utils.py::resolve_ffmpeg_binary para como
+    se detecta un binario con soporte completo si esta instalado.
 
     segments: lista de dicts {"start", "end", "text"} en tiempo relativo
     al clip (0 = inicio del clip).
+    font_name: clave de fonts.py::FONT_CATALOG (default 'im_fell').
     """
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -100,11 +103,15 @@ def burn_subtitles(clip_path, segments, out_path):
         run(["ffmpeg", "-y", "-i", str(clip_path), "-c", "copy", str(out_path)])
         return out_path
 
+    font_path = resolve_font_path(font_name)
+    fontfile_clause = f"fontfile='{_escape_drawtext(str(font_path))}':" if font_path else ""
+
     filters = []
     for seg in segments:
         text = _escape_drawtext(seg["text"])
         filters.append(
             "drawtext="
+            f"{fontfile_clause}"
             f"text='{text}':"
             "fontsize=42:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=12:"
             "x=(w-text_w)/2:y=h-220:"
@@ -118,4 +125,47 @@ def burn_subtitles(clip_path, segments, out_path):
         "-c:a", "copy",
         str(out_path),
     ])
+    return out_path
+
+
+def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_target="black", fade_image_path=None, format_name="story"):
+    """Aplica un fadeout de audio y video en los ultimos fade_duration
+    segundos del clip. fade_target: "black" (fade a negro, filtro 'fade'
+    nativo) o "image" (disuelve hacia una imagen fija superpuesta con
+    'overlay', requiere fade_image_path).
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fade_start = max(0.0, clip_duration - fade_duration)
+    afade = f"afade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}"
+
+    if fade_target == "image" and fade_image_path:
+        target_w, target_h = FORMATS[format_name]
+        vf_complex = (
+            f"[1:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
+            f"crop={target_w}:{target_h},format=yuva420p,"
+            f"fade=t=in:st=0:d={fade_duration:.3f}:alpha=1[imgfade];"
+            f"[0:v][imgfade]overlay=enable='gte(t,{fade_start:.3f})'[vout]"
+        )
+        run([
+            "ffmpeg", "-y",
+            "-i", str(clip_path),
+            "-loop", "1", "-t", f"{fade_duration:.3f}", "-i", str(fade_image_path),
+            "-filter_complex", vf_complex,
+            "-map", "[vout]", "-map", "0:a",
+            "-af", afade,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+            "-c:a", "aac", "-b:a", "128k",
+            str(out_path),
+        ])
+    else:
+        vf = f"fade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}:color=black"
+        run([
+            "ffmpeg", "-y", "-i", str(clip_path),
+            "-vf", vf,
+            "-af", afade,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+            "-c:a", "aac", "-b:a", "128k",
+            str(out_path),
+        ])
     return out_path
