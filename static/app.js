@@ -605,6 +605,65 @@ async function pollReelStatus() {
   }
 }
 
+function createSegmentRow(container, idx, start, end, text, card, btnAddSegment = null) {
+  const row = document.createElement("div");
+  row.className = "segment-row-editable";
+
+  // Contenedor para tiempos (en la misma línea)
+  const timeContainer = document.createElement("div");
+  timeContainer.className = "segment-times-container";
+
+  const startInput = document.createElement("input");
+  startInput.type = "number";
+  startInput.step = "0.1";
+  startInput.min = "0";
+  startInput.value = start.toFixed(2);
+  startInput.className = "segment-time-input";
+  startInput.dataset.segIndex = idx;
+  startInput.dataset.timeField = "start";
+  startInput.placeholder = "0.0s";
+  timeContainer.appendChild(startInput);
+
+  const endInput = document.createElement("input");
+  endInput.type = "number";
+  endInput.step = "0.1";
+  endInput.min = "0";
+  endInput.value = end.toFixed(2);
+  endInput.className = "segment-time-input";
+  endInput.dataset.segIndex = idx;
+  endInput.dataset.timeField = "end";
+  endInput.placeholder = "1.0s";
+  timeContainer.appendChild(endInput);
+
+  row.appendChild(timeContainer);
+
+  // Texto
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.className = "segment-text-input";
+  textarea.dataset.segIndex = idx;
+  textarea.placeholder = "Escribe el texto del subtítulo...";
+  textarea.addEventListener("input", () => updateSubtitlePreview(card));
+  row.appendChild(textarea);
+
+  // Botón eliminar
+  const btnDelete = document.createElement("button");
+  btnDelete.className = "btn-delete-segment";
+  btnDelete.textContent = "✕";
+  btnDelete.type = "button";
+  btnDelete.addEventListener("click", () => {
+    row.remove();
+    updateSubtitlePreview(card);
+  });
+  row.appendChild(btnDelete);
+
+  if (btnAddSegment) {
+    container.insertBefore(row, btnAddSegment);
+  } else {
+    container.appendChild(row);
+  }
+}
+
 function renderReelReview(reels) {
   reelReviewList.innerHTML = "";
   reels.forEach((r) => {
@@ -641,128 +700,30 @@ function renderReelReview(reels) {
     const segmentsContainer = document.createElement("div");
     segmentsContainer.className = "segments-list";
 
+    // Renderizar segmentos detectados
+    segments.forEach((seg, idx) => {
+      createSegmentRow(segmentsContainer, idx, seg.start, seg.end, seg.text, card);
+    });
+
+    // Mostrar mensaje si no hay segmentos detectados
     if (segments.length === 0) {
       const empty = document.createElement("p");
       empty.className = "no-segments";
-      empty.textContent = "No se detectó texto hablado en este reel.";
+      empty.textContent = "No se detectó texto hablado en este reel. Puedes agregar subtítulos manualmente:";
       segmentsContainer.appendChild(empty);
-    } else {
-      segments.forEach((seg, idx) => {
-        const row = document.createElement("div");
-        row.className = "segment-row-editable";
-
-        // Tiempo de inicio
-        const startLabel = document.createElement("label");
-        startLabel.className = "segment-time-label";
-        startLabel.textContent = "Inicio:";
-        const startInput = document.createElement("input");
-        startInput.type = "number";
-        startInput.step = "0.1";
-        startInput.min = "0";
-        startInput.value = seg.start.toFixed(2);
-        startInput.className = "segment-time-input";
-        startInput.dataset.segIndex = idx;
-        startInput.dataset.timeField = "start";
-        row.appendChild(startLabel);
-        row.appendChild(startInput);
-
-        // Tiempo de fin
-        const endLabel = document.createElement("label");
-        endLabel.className = "segment-time-label";
-        endLabel.textContent = "Fin:";
-        const endInput = document.createElement("input");
-        endInput.type = "number";
-        endInput.step = "0.1";
-        endInput.min = "0";
-        endInput.value = seg.end.toFixed(2);
-        endInput.className = "segment-time-input";
-        endInput.dataset.segIndex = idx;
-        endInput.dataset.timeField = "end";
-        row.appendChild(endLabel);
-        row.appendChild(endInput);
-
-        // Texto
-        const textarea = document.createElement("textarea");
-        textarea.value = seg.text;
-        textarea.className = "segment-text-input";
-        textarea.dataset.segIndex = idx;
-        textarea.addEventListener("input", () => updateSubtitlePreview(card));
-        row.appendChild(textarea);
-
-        // Botón eliminar
-        const btnDelete = document.createElement("button");
-        btnDelete.className = "btn-delete-segment";
-        btnDelete.textContent = "✕";
-        btnDelete.type = "button";
-        btnDelete.addEventListener("click", () => {
-          row.remove();
-          updateSubtitlePreview(card);
-        });
-        row.appendChild(btnDelete);
-
-        segmentsContainer.appendChild(row);
-      });
-
-      // Botón para agregar nueva línea
-      const btnAddSegment = document.createElement("button");
-      btnAddSegment.className = "btn-add-segment";
-      btnAddSegment.textContent = "+ Agregar línea";
-      btnAddSegment.type = "button";
-      btnAddSegment.addEventListener("click", () => {
-        const newIdx = segmentsContainer.querySelectorAll(".segment-row-editable").length;
-        const newRow = document.createElement("div");
-        newRow.className = "segment-row-editable";
-
-        const startLabel = document.createElement("label");
-        startLabel.className = "segment-time-label";
-        startLabel.textContent = "Inicio:";
-        const startInput = document.createElement("input");
-        startInput.type = "number";
-        startInput.step = "0.1";
-        startInput.min = "0";
-        startInput.value = "0";
-        startInput.className = "segment-time-input";
-        startInput.dataset.segIndex = newIdx;
-        startInput.dataset.timeField = "start";
-        newRow.appendChild(startLabel);
-        newRow.appendChild(startInput);
-
-        const endLabel = document.createElement("label");
-        endLabel.className = "segment-time-label";
-        endLabel.textContent = "Fin:";
-        const endInput = document.createElement("input");
-        endInput.type = "number";
-        endInput.step = "0.1";
-        endInput.min = "0";
-        endInput.value = "1";
-        endInput.className = "segment-time-input";
-        endInput.dataset.segIndex = newIdx;
-        endInput.dataset.timeField = "end";
-        newRow.appendChild(endLabel);
-        newRow.appendChild(endInput);
-
-        const textarea = document.createElement("textarea");
-        textarea.placeholder = "Escribe el texto del subtítulo...";
-        textarea.className = "segment-text-input";
-        textarea.dataset.segIndex = newIdx;
-        textarea.addEventListener("input", () => updateSubtitlePreview(card));
-        newRow.appendChild(textarea);
-
-        const btnDelete = document.createElement("button");
-        btnDelete.className = "btn-delete-segment";
-        btnDelete.textContent = "✕";
-        btnDelete.type = "button";
-        btnDelete.addEventListener("click", () => {
-          newRow.remove();
-          updateSubtitlePreview(card);
-        });
-        newRow.appendChild(btnDelete);
-
-        segmentsContainer.insertBefore(newRow, btnAddSegment);
-        updateSubtitlePreview(card);
-      });
-      segmentsContainer.appendChild(btnAddSegment);
     }
+
+    // Botón para agregar nueva línea (siempre disponible)
+    const btnAddSegment = document.createElement("button");
+    btnAddSegment.className = "btn-add-segment";
+    btnAddSegment.textContent = "+ Agregar línea";
+    btnAddSegment.type = "button";
+    btnAddSegment.addEventListener("click", () => {
+      const newIdx = segmentsContainer.querySelectorAll(".segment-row-editable").length;
+      createSegmentRow(segmentsContainer, newIdx, 0, 1, "", card, btnAddSegment);
+      updateSubtitlePreview(card);
+    });
+    segmentsContainer.appendChild(btnAddSegment);
 
     editor.appendChild(segmentsContainer);
     card.appendChild(editor);

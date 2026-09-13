@@ -804,7 +804,7 @@ footer {
 
 .segment-row-editable {
   display: grid;
-  grid-template-columns: 60px 60px 1fr 28px;
+  grid-template-columns: auto 1fr 28px;
   gap: 0.4rem;
   align-items: start;
   background: rgba(255,255,255,0.02);
@@ -813,36 +813,31 @@ footer {
   border: 1px solid var(--border-light);
 }
 
-.segment-time-label {
-  font-size: 0.7em;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  font-weight: 600;
-  grid-column: 1;
+.segment-times-container {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
 }
 
 .segment-time-input {
-  grid-column: 1;
-  width: 100%;
+  width: 60px;
   background: var(--bg-darker);
   color: var(--fg-text);
   border: 1px solid var(--border-light);
   border-radius: 3px;
   padding: 0.3rem;
-  font-size: 0.8em;
+  font-size: max(8px, 0.8em);
   font-family: monospace;
+  flex-shrink: 0;
 }
 
-.segment-time-input:nth-of-type(3) {
-  grid-column: 2;
-}
-
-.segment-time-input:nth-of-type(4) {
-  grid-column: 2;
+.segment-time-input::placeholder {
+  color: var(--fg-muted);
+  opacity: 0.5;
 }
 
 .segment-text-input {
-  grid-column: 3;
+  grid-column: 2;
   min-height: 2rem;
   resize: vertical;
   background: var(--bg-darker);
@@ -851,12 +846,12 @@ footer {
   border-radius: 3px;
   padding: 0.4rem;
   font-family: inherit;
-  font-size: 0.85em;
+  font-size: max(8px, 0.85em);
 }
 
 .btn-delete-segment {
-  grid-column: 4;
-  grid-row: 2 / span 2;
+  grid-column: 3;
+  grid-row: 1;
   width: 24px;
   height: 24px;
   padding: 0;
@@ -868,6 +863,7 @@ footer {
   font-size: 1em;
   font-weight: bold;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .btn-delete-segment:hover {
