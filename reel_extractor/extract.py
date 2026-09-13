@@ -29,6 +29,7 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from reel_extractor._ffmpeg_utils import probe_duration
 from reel_extractor.audio_signal import compute_audio_scores, extract_audio_wav
+from reel_extractor.clip_render import FORMATS, render_vertical_clip
 from reel_extractor.highlight import combine_and_score, pick_windows
 from reel_extractor.visual_signal import compute_visual_scores, sample_frames_for_analysis
 
@@ -45,6 +46,7 @@ def main():
     )
     ap.add_argument("--visual-fps", type=float, default=2.0, help="Fps de muestreo para analisis visual")
     ap.add_argument("--min-gap", type=float, default=1.0, help="Segundos minimos entre reels elegidos")
+    ap.add_argument("--format", default="story", choices=sorted(FORMATS), help="Formato vertical de salida")
     args = ap.parse_args()
 
     if not 15 <= args.duration <= 60:
@@ -88,10 +90,20 @@ def main():
     if len(windows) < args.count:
         print(f"Aviso: solo se encontraron {len(windows)} ventana(s) no superpuestas (se pidieron {args.count}).")
 
-    reels = [
-        {"id": i + 1, "start": round(w["start"], 2), "end": round(w["end"], 2), "score": round(w["score"], 4)}
-        for i, w in enumerate(windows)
-    ]
+    clips_dir = output_dir / "clips"
+    reels = []
+    for i, w in enumerate(windows):
+        reel_id = i + 1
+        print(f"Renderizando reel #{reel_id} ({args.format}, {w['start']:.1f}s-{w['end']:.1f}s)...")
+        clip_path = clips_dir / f"{reel_id:02d}.mp4"
+        render_vertical_clip(input_path, w["start"], w["end"], clip_path, format_name=args.format)
+        reels.append({
+            "id": reel_id,
+            "start": round(w["start"], 2),
+            "end": round(w["end"], 2),
+            "score": round(w["score"], 4),
+            "clip": f"clips/{clip_path.name}",
+        })
 
     metadata = {
         "source": input_path.name,
@@ -99,13 +111,14 @@ def main():
         "requested_duration": args.duration,
         "requested_count": args.count,
         "audio_weight": args.audio_weight,
+        "format": args.format,
         "reels": reels,
     }
     (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False))
 
-    print(f"\n{len(reels)} reel(s) detectado(s):")
+    print(f"\n{len(reels)} reel(s) generado(s):")
     for r in reels:
-        print(f"  #{r['id']}: {r['start']}s - {r['end']}s (score {r['score']})")
+        print(f"  #{r['id']}: {r['start']}s - {r['end']}s (score {r['score']}) -> {r['clip']}")
     print(f"\nMetadata escrita en {output_dir / 'metadata.json'}")
 
 
