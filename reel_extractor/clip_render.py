@@ -15,14 +15,21 @@ FORMATS = {
 
 
 def probe_video_size(input_path):
-    """Retorna (width, height) del video de entrada via ffprobe."""
+    """Retorna (width, height) del video de entrada via ffprobe.
+
+    Usa -of json en vez de csv: algunos videos agregan columnas extra al
+    csv (p.ej. side_data_list por rotacion), rompiendo un split(",") fijo
+    en 2 valores. JSON evita ese problema por completo.
+    """
+    import json as _json
+
     out = run([
         "ffprobe", "-v", "error", "-select_streams", "v:0",
         "-show_entries", "stream=width,height",
-        "-of", "csv=p=0", str(input_path),
+        "-of", "json", str(input_path),
     ])
-    w_str, h_str = out.strip().split(",")
-    return int(w_str), int(h_str)
+    stream = _json.loads(out)["streams"][0]
+    return int(stream["width"]), int(stream["height"])
 
 
 def _cover_crop_filter(src_w, src_h, target_w, target_h):
