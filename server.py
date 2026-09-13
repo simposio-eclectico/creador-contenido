@@ -250,6 +250,72 @@ def run_video_job(job_id: str, video_path: str):
         update_job(job_id, status="error", error=f"Error: {e}")
 
 
+def run_reel_job(job_id: str, video_path: str, params: dict):
+    """Ejecuta reel_extractor/extract.py en un hilo de fondo."""
+    job_dir = JOBS_DIR / job_id
+    output_dir = job_dir / "reel_output"
+    log_path = job_dir / "log.txt"
+
+    def log_write(msg: str, end="\n"):
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(msg + end)
+
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        update_job(job_id, status="processing", stage="Detectando highlights...")
+
+        cmd = [
+            sys.executable,
+            str(PROJECT_ROOT / "reel_extractor" / "extract.py"),
+            "--input", str(video_path),
+            "--output", str(output_dir),
+            "--duration", str(params.get("duration", 30)),
+            "--count", str(params.get("count", 3)),
+            "--audio-weight", str(params.get("audio_weight", 0.5)),
+            "--format", params.get("format", "story"),
+            "--whisper-model", params.get("whisper_model", "base"),
+        ]
+        if params.get("subtitles"):
+            cmd.append("--subtitles")
+
+        log_write(f"Procesando video para reels: {Path(video_path).name}")
+        log_write(f"Comando: {' '.join(cmd)}")
+        log_write("")
+
+        result = subprocess.run(
+            cmd,
+            stdout=open(log_path, "a"),
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=3600,
+        )
+
+        if result.returncode != 0:
+            update_job(
+                job_id,
+                status="error",
+                error=f"Reel extraction failed (exit {result.returncode})",
+            )
+            return
+
+        metadata_path = output_dir / "metadata.json"
+        if not metadata_path.exists():
+            update_job(job_id, status="error", error="metadata.json no fue generado")
+            return
+
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+        log_write("")
+        log_write("✓ Reel extraction complete")
+        update_job(job_id, status="done", reel_output=str(output_dir), reels=metadata["reels"])
+
+    except subprocess.TimeoutExpired:
+        update_job(job_id, status="error", error="Reel extraction timeout")
+    except Exception as e:
+        update_job(job_id, status="error", error=f"Error: {e}")
+
+
 # --------------------------------------------------------------------------
 # Rutas Flask
 # --------------------------------------------------------------------------
@@ -386,6 +452,94 @@ def get_video_status(job_id):
     })
 
 
+@app.route("/api/upload-reel-video", methods=["POST"])
+def upload_reel_video():
+    """Recibe archivo de video e inicia extraccion de reels."""
+    if "video" not in request.files:
+        return jsonify({"error": "Sin archivo de video"}), 400
+
+    file = request.files["video"]
+    if file.filename == "":
+        return jsonify({"error": "Archivo vacío"}), 400
+
+    duration = request.form.get("duration", "30")
+    count = request.form.get("count", "3")
+    audio_weight = request.form.get("audio_weight", "0.5")
+    format_name = request.form.get("format", "story")
+    subtitles = request.form.get("subtitles") in ("1", "true", "on")
+    whisper_model = request.form.get("whisper_model", "base")
+
+    job_id = str(uuid.uuid4())
+    job_dir = JOBS_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = secure_filename(file.filename)
+    input_path = job_dir / filename
+    file.save(input_path)
+
+    with JOBS_LOCK:
+        JOBS[job_id] = {
+            "type": "reel",
+            "status": "pending",
+            "stage": "Iniciando...",
+            "log_path": str(job_dir / "log.txt"),
+            "reel_output": None,
+            "reels": None,
+            "error": None,
+        }
+
+    params = {
+        "duration": duration,
+        "count": count,
+        "audio_weight": audio_weight,
+        "format": format_name,
+        "subtitles": subtitles,
+        "whisper_model": whisper_model,
+    }
+    thread = threading.Thread(
+        target=run_reel_job, args=(job_id, str(input_path), params), daemon=True
+    )
+    thread.start()
+
+    return jsonify({"job_id": job_id}), 202
+
+
+@app.route("/api/reel-jobs/<job_id>")
+def get_reel_status(job_id):
+    """Retorna estado del job de extraccion de reels."""
+    job = get_job(job_id)
+    if not job or job.get("type") != "reel":
+        return jsonify({"error": "Job no encontrado"}), 404
+
+    log_path = Path(job["log_path"])
+    log_tail = read_log_tail(log_path, lines=100)
+
+    reels = job.get("reels")
+    reels_out = None
+    if reels:
+        reels_out = [
+            {
+                **r,
+                "clip_url": f"/jobs/{job_id}/reel-output/{r['clip']}",
+                "srt_url": f"/jobs/{job_id}/reel-output/{r['srt']}" if r.get("srt") else None,
+                "burned_clip_url": (
+                    f"/jobs/{job_id}/reel-output/{r['clip_with_subtitles']}"
+                    if r.get("clip_with_subtitles") else None
+                ),
+            }
+            for r in reels
+        ]
+
+    return jsonify({
+        "job_id": job_id,
+        "status": job["status"],
+        "stage": job["stage"],
+        "log_tail": log_tail,
+        "reels": reels_out,
+        "error": job.get("error"),
+    })
+
+
 @app.route("/api/browse")
 def browse_folders():
     """Lista subcarpetas de un directorio, para el selector visual de carpetas."""
@@ -447,6 +601,24 @@ def serve_video_output(job_id, subpath):
         return "Job no encontrado", 404
 
     base = Path(job["video_output"]).resolve()
+    target = (base / subpath).resolve()
+
+    try:
+        target.relative_to(base)
+    except ValueError:
+        return "Acceso denegado", 403
+
+    return send_from_directory(base, subpath)
+
+
+@app.route("/jobs/<job_id>/reel-output/<path:subpath>")
+def serve_reel_output(job_id, subpath):
+    """Sirve archivos desde salida de extraccion de reels (clips, .srt)."""
+    job = get_job(job_id)
+    if not job or not job.get("reel_output"):
+        return "Job no encontrado", 404
+
+    base = Path(job["reel_output"]).resolve()
     target = (base / subpath).resolve()
 
     try:
