@@ -29,8 +29,9 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from reel_extractor._ffmpeg_utils import probe_duration
 from reel_extractor.audio_signal import compute_audio_scores, extract_audio_wav
-from reel_extractor.clip_render import FORMATS, render_vertical_clip
+from reel_extractor.clip_render import FORMATS, burn_subtitles, render_vertical_clip
 from reel_extractor.highlight import combine_and_score, pick_windows
+from reel_extractor.transcribe import segments_for_window, transcribe_full_video, write_srt
 from reel_extractor.visual_signal import compute_visual_scores, sample_frames_for_analysis
 
 
@@ -47,6 +48,9 @@ def main():
     ap.add_argument("--visual-fps", type=float, default=2.0, help="Fps de muestreo para analisis visual")
     ap.add_argument("--min-gap", type=float, default=1.0, help="Segundos minimos entre reels elegidos")
     ap.add_argument("--format", default="story", choices=sorted(FORMATS), help="Formato vertical de salida")
+    ap.add_argument("--subtitles", action="store_true", help="Genera subtitulos (.srt + quemados) con Whisper")
+    ap.add_argument("--whisper-model", default="base", choices=["tiny", "base", "small"])
+    ap.add_argument("--language", default="es", help="Idioma para Whisper (default 'es')")
     args = ap.parse_args()
 
     if not 15 <= args.duration <= 60:
@@ -90,20 +94,50 @@ def main():
     if len(windows) < args.count:
         print(f"Aviso: solo se encontraron {len(windows)} ventana(s) no superpuestas (se pidieron {args.count}).")
 
+    transcript_segments = None
+    if args.subtitles:
+        print(f"Transcribiendo video completo con Whisper ({args.whisper_model})...")
+        transcript_segments = transcribe_full_video(input_path, model_size=args.whisper_model, language=args.language)
+        print(f"{len(transcript_segments)} segmento(s) transcritos.")
+
     clips_dir = output_dir / "clips"
+    subs_dir = output_dir / "subs"
     reels = []
     for i, w in enumerate(windows):
         reel_id = i + 1
         print(f"Renderizando reel #{reel_id} ({args.format}, {w['start']:.1f}s-{w['end']:.1f}s)...")
         clip_path = clips_dir / f"{reel_id:02d}.mp4"
         render_vertical_clip(input_path, w["start"], w["end"], clip_path, format_name=args.format)
-        reels.append({
+
+        reel = {
             "id": reel_id,
             "start": round(w["start"], 2),
             "end": round(w["end"], 2),
             "score": round(w["score"], 4),
             "clip": f"clips/{clip_path.name}",
-        })
+            "srt": None,
+            "clip_with_subtitles": None,
+        }
+
+        if transcript_segments is not None:
+            window_segments = segments_for_window(transcript_segments, w["start"], w["end"])
+            srt_path = subs_dir / f"{reel_id:02d}.srt"
+            write_srt(window_segments, srt_path)
+            reel["srt"] = f"subs/{srt_path.name}"
+
+            print(f"Quemando subtitulos en reel #{reel_id}...")
+            burned_path = clips_dir / f"{reel_id:02d}_subtitled.mp4"
+            try:
+                burn_subtitles(clip_path, window_segments, burned_path)
+                reel["clip_with_subtitles"] = f"clips/{burned_path.name}"
+            except RuntimeError as exc:
+                print(
+                    f"Aviso: no se pudo quemar subtitulos en reel #{reel_id} "
+                    f"(revisa que ffmpeg tenga 'drawtext', requiere libfreetype). "
+                    f"Se conserva el .srt. Detalle: {exc}"
+                )
+
+        reels.append(reel)
 
     metadata = {
         "source": input_path.name,

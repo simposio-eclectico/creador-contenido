@@ -66,16 +66,48 @@ def render_vertical_clip(input_path, start, end, out_path, format_name="story"):
     return out_path
 
 
-def burn_subtitles(clip_path, srt_path, out_path):
-    """Quema subtitulos sobre un clip ya renderizado usando el filtro
-    ffmpeg 'subtitles' (requiere libass, comunmente incluido en ffmpeg)."""
+def _escape_drawtext(text):
+    """Escapa caracteres especiales del filtro drawtext de ffmpeg."""
+    return (
+        text.replace("\\", r"\\\\")
+        .replace(":", r"\:")
+        .replace("'", r"\'")
+        .replace("%", r"\%")
+    )
+
+
+def burn_subtitles(clip_path, segments, out_path):
+    """Quema subtitulos sobre un clip ya renderizado encadenando un filtro
+    'drawtext' por segmento (con enable=between(t,start,end)). Se prefiere
+    drawtext sobre el filtro 'subtitles' porque este ultimo requiere libass,
+    que no viene habilitado en todas las builds de ffmpeg (p.ej. algunas
+    instalaciones via Homebrew), mientras que drawtext siempre esta disponible.
+
+    segments: lista de dicts {"start", "end", "text"} en tiempo relativo
+    al clip (0 = inicio del clip).
+    """
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    srt_escaped = str(srt_path).replace(":", r"\:")
+    if not segments:
+        run(["ffmpeg", "-y", "-i", str(clip_path), "-c", "copy", str(out_path)])
+        return out_path
+
+    filters = []
+    for seg in segments:
+        text = _escape_drawtext(seg["text"])
+        filters.append(
+            "drawtext="
+            f"text='{text}':"
+            "fontsize=42:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=12:"
+            "x=(w-text_w)/2:y=h-220:"
+            f"enable='between(t,{seg['start']:.3f},{seg['end']:.3f})'"
+        )
+    vf = ",".join(filters)
+
     run([
         "ffmpeg", "-y", "-i", str(clip_path),
-        "-vf", f"subtitles={srt_escaped}:force_style='FontSize=24,Alignment=2,MarginV=80'",
+        "-vf", vf,
         "-c:a", "copy",
         str(out_path),
     ])
