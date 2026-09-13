@@ -144,14 +144,35 @@ def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_targe
     if fade_target == "image" and fade_image_path:
         target_w, target_h = FORMATS[format_name]
 
+        # in_range=full:out_range=tv on the scale filter is required: still
+        # images (JPEG/PNG) are typically full-range ('pc') while the video
+        # is limited-range ('tv'); overlaying full-range and limited-range
+        # yuv420p sources directly segfaults libswscale in some ffmpeg
+        # builds (observed on ffmpeg 9.0.1), so the ranges are normalized
+        # explicitly before pad/crop instead of relying on auto-detection.
         if image_fit == "cover":
-            scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}"
+            scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase:in_range=full:out_range=tv,format=yuv420p,crop={target_w}:{target_h}"
         elif image_fit == "contain-width":
-            scale_filter = f"scale={target_w}:-1,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color={background_color}"
+            # Scale to match target width; if resulting height still
+            # exceeds target_h (near-square source in a tall box), clamp it
+            # down further so 'pad' never receives dimensions larger than
+            # its own box (pad fails hard otherwise). Use -2 (not -1) for
+            # the auto-computed dimension: -1 can yield an odd number,
+            # which yuv420p (even-dimension chroma subsampling) cannot
+            # represent and crashes libswscale downstream.
+            scale_filter = (
+                f"scale={target_w}:-2:in_range=full:out_range=tv,format=yuv420p,"
+                f"scale=-2:'min(ih\\,{target_h})',"
+                f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color={background_color}"
+            )
         elif image_fit == "contain-height":
-            scale_filter = f"scale=-1:{target_h},pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color={background_color}"
+            scale_filter = (
+                f"scale=-2:{target_h}:in_range=full:out_range=tv,format=yuv420p,"
+                f"scale='min(iw\\,{target_w})':-2,"
+                f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color={background_color}"
+            )
         else:
-            scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}"
+            scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase:in_range=full:out_range=tv,format=yuv420p,crop={target_w}:{target_h}"
 
         # Simple approach: video fades to black, image overlays on top
         # The transition happens naturally as video darkens and image appears
