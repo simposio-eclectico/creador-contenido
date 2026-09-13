@@ -55,15 +55,17 @@ Luego abre `http://localhost:5000` en tu navegador. Verás tres pestañas:
    - **Cantidad de reels:** cuántos clips extraer
    - **Peso audio vs. visual:** qué tanto influye el volumen/energía del audio (risas, aplausos, picos) vs. el movimiento e interés visual de la escena al elegir los momentos destacados
    - **Formato:** story (1080x1920) o cuadrado (1080x1080)
-   - **Subtítulos:** activa/desactiva, elige el modelo Whisper (tiny/base/small) y la tipografía para quemarlos (default **IM Fell**, la misma que usa el editor de composiciones; también Georgia, Arial, Helvetica, Courier, Impact)
+   - **Subtítulos:** activa/desactiva, elige el idioma del audio (español, inglés, portugués, francés, italiano, alemán), el modelo Whisper (tiny/base/small) y la tipografía para quemarlos (default **IM Fell**, la misma que usa el editor de composiciones; también Georgia, Arial, Helvetica, Courier, Impact)
    - **Fadeout:** activa/desactiva el desvanecido de audio e imagen en los últimos segundos de cada reel, elige la duración, y si el video se desvanece a negro o hacia una imagen fija que subís (ideal para un logo/outro)
 3. El sistema:
    - Analiza audio (energía/picos de volumen) y video (entropía, contraste, movimiento, saliencia) del clip completo
    - Combina ambas señales según el peso elegido y selecciona los mejores momentos no superpuestos
-   - Recorta cada momento al formato vertical elegido
+   - Recorta cada momento al formato vertical elegido (esta versión, **sin subtítulos**, siempre queda disponible para descargar)
    - Si activaste fadeout, desvanece audio y video en los últimos segundos (a negro o hacia la imagen elegida)
-   - Si activaste subtítulos, transcribe con Whisper (local, sin conexión a internet) y genera un `.srt` por reel, además de una versión con subtítulos quemados en el video (si tu ffmpeg soporta `drawtext`, ver Requisitos)
-4. Descarga cada reel individualmente (con o sin subtítulos quemados) o el `.srt` para editar/subir aparte
+   - Si activaste subtítulos, transcribe con Whisper (local, sin conexión a internet) y te muestra el texto de cada reel para que lo revises/corrijas antes de quemarlo — Whisper no siempre transcribe perfecto, sobre todo con modelos rápidos (`tiny`) o audio ruidoso
+4. **Revisa y edita los subtítulos:** para cada reel ves una vista previa (sin subtítulos) y el texto transcrito dividido en segmentos con su tiempo; corregí lo que haga falta y presioná "Confirmar y quemar subtítulos"
+5. El sistema quema los subtítulos (con tu texto corregido) sobre cada clip y actualiza el `.srt`
+6. Descarga cada reel: la versión sin subtítulos (siempre disponible), la versión con subtítulos quemados (si confirmaste el paso anterior y tu ffmpeg soporta `drawtext`, ver Requisitos), o el `.srt` para editar/subir aparte
 
 ## Flujos de uso comunes
 
@@ -157,11 +159,29 @@ python3 reel_extractor/extract.py --input video.mp4 --output salida/ \
   --format story \         # story (1080x1920) | square (1080x1080)
   --subtitles \            # genera .srt + version con subtitulos quemados
   --whisper-model base \   # tiny | base | small
-  --language es \          # idioma para Whisper
+  --language es \          # idioma del audio para Whisper (es, en, pt, fr, it, de, ...)
   --subtitle-font im_fell \ # im_fell (default) | georgia | arial | helvetica | courier | impact
   --fade-out 3 \           # segundos de fadeout audio+video al final (0 = desactivado)
   --fade-target black \    # black (fundido a negro) | image (fundido a --fade-image)
-  --fade-image outro.png   # requerido solo si --fade-target=image
+  --fade-image outro.png \ # requerido solo si --fade-target=image
+  --skip-burn              # solo genera .srt (sin quemar), para revisar/editar el texto antes
+```
+
+### Editar subtítulos antes de quemarlos (CLI)
+
+Si usaste `--skip-burn`, el `.srt` y el texto transcrito (por reel) quedan en `metadata.json`
+sin quemar en el video. Para editar el texto y quemarlo después, sin tener que repetir la
+detección de highlights ni la transcripción (los pasos más lentos):
+
+```bash
+# 1. Edita el texto en un JSON: [{"start": 0.0, "end": 8.0, "text": "texto corregido"}]
+# 2. Quema los subtítulos editados sobre el clip ya generado:
+python3 reel_extractor/burn_subs.py \
+  --clip reels_output/clips/01.mp4 \
+  --segments segmentos_editados.json \
+  --output reels_output/clips/01_subtitled.mp4 \
+  --srt-output reels_output/subs/01.srt \
+  --font im_fell
 ```
 
 Genera:

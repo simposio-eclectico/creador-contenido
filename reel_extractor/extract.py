@@ -65,6 +65,11 @@ def main():
         help="'black': fade a negro. 'image': disuelve hacia --fade-image",
     )
     ap.add_argument("--fade-image", help="Ruta a imagen fija para --fade-target=image")
+    ap.add_argument(
+        "--skip-burn", action="store_true",
+        help="Genera .srt y guarda los segmentos en metadata.json pero NO quema "
+             "los subtitulos todavia (para permitir editarlos antes, ver burn_subs.py)",
+    )
     args = ap.parse_args()
 
     if args.fade_out and args.fade_target == "image" and not args.fade_image:
@@ -148,6 +153,7 @@ def main():
             "clip": f"clips/{clip_path.name}",
             "srt": None,
             "clip_with_subtitles": None,
+            "segments": None,
         }
 
         if transcript_segments is not None:
@@ -155,18 +161,22 @@ def main():
             srt_path = subs_dir / f"{reel_id:02d}.srt"
             write_srt(window_segments, srt_path)
             reel["srt"] = f"subs/{srt_path.name}"
+            reel["segments"] = window_segments
 
-            print(f"Quemando subtitulos en reel #{reel_id} (fuente: {args.subtitle_font})...")
-            burned_path = clips_dir / f"{reel_id:02d}_subtitled.mp4"
-            try:
-                burn_subtitles(clip_path, window_segments, burned_path, font_name=args.subtitle_font)
-                reel["clip_with_subtitles"] = f"clips/{burned_path.name}"
-            except RuntimeError as exc:
-                print(
-                    f"Aviso: no se pudo quemar subtitulos en reel #{reel_id} "
-                    f"(revisa que ffmpeg tenga 'drawtext', requiere libfreetype). "
-                    f"Se conserva el .srt. Detalle: {exc}"
-                )
+            if args.skip_burn:
+                print(f"Reel #{reel_id}: subtitulos generados, pendientes de revision (--skip-burn).")
+            else:
+                print(f"Quemando subtitulos en reel #{reel_id} (fuente: {args.subtitle_font})...")
+                burned_path = clips_dir / f"{reel_id:02d}_subtitled.mp4"
+                try:
+                    burn_subtitles(clip_path, window_segments, burned_path, font_name=args.subtitle_font)
+                    reel["clip_with_subtitles"] = f"clips/{burned_path.name}"
+                except RuntimeError as exc:
+                    print(
+                        f"Aviso: no se pudo quemar subtitulos en reel #{reel_id} "
+                        f"(revisa que ffmpeg tenga 'drawtext', requiere libfreetype). "
+                        f"Se conserva el .srt. Detalle: {exc}"
+                    )
 
         reels.append(reel)
 
@@ -180,6 +190,7 @@ def main():
         "subtitle_font": args.subtitle_font,
         "fade_out": args.fade_out,
         "fade_target": args.fade_target if args.fade_out > 0 else None,
+        "subtitles_pending_review": bool(args.subtitles and args.skip_burn),
         "reels": reels,
     }
     (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False))

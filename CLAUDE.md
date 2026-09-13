@@ -173,7 +173,13 @@ The system was unified with selector-fotogramas via a multi-tab interface:
 3. Combine both signals on a common time grid using `--audio-weight` (0=visual only, 1=audio only), then greedily pick N non-overlapping windows of `--duration` seconds that maximize the combined score (`highlight.py`)
 4. Render each window as a vertical clip (`story` 1080x1920 or `square` 1080x1080) via ffmpeg center-crop + scale (`clip_render.py`)
 5. Optionally apply a fadeout (`--fade-out` seconds) of audio + video at the end of each clip, either to black or dissolving into a fixed image (`clip_render.py::apply_fade`)
-6. If `--subtitles`: transcribe the **full video once** with local Whisper (`transcribe.py`), then per-window filter/re-zero segments into a `.srt`, and burn them into the clip (post-fade) via chained `drawtext` filters with a selectable font (`clip_render.py::burn_subtitles`)
+6. If `--subtitles`: transcribe the **full video once** with local Whisper (`transcribe.py`, language selectable via `--language`), then per-window filter/re-zero segments into a `.srt`. The web flow always passes `--skip-burn` here — burning happens in a separate confirmation step (below) so the user can review/edit the transcribed text first; direct CLI use without `--skip-burn` burns immediately with the raw Whisper output, same as before.
+
+**Two-stage subtitle review (web only):**
+- `POST /api/upload-reel-video` → `run_reel_job()` calls `extract.py --subtitles --skip-burn`. This renders all clips (sin subtítulos, always available as `reel["clip"]`) and writes each reel's Whisper segments into `metadata.json` (`reel["segments"]`), but does **not** burn anything. Job status becomes `awaiting_review` instead of `done`.
+- Frontend (`renderReelReview()` in `app.js`) shows each reel's plain clip next to an editable textarea per transcribed segment.
+- `POST /api/reel-jobs/<id>/confirm-subtitles` with `{"reels": [{"id", "segments": [{"start","end","text"}]}]}` (edited or not) → `run_burn_subtitles_job()` invokes `reel_extractor/burn_subs.py` once per reel — a standalone script that only burns + rewrites the `.srt`, without re-running highlight detection or transcription (both expensive). Job status becomes `done`, with `clip_with_subtitles` now pointing at the burned version reflecting the edited text.
+- The un-subtitled clip (`reel["clip"]`) is generated unconditionally regardless of `--subtitles` — the gallery always offers a "sin subtítulos" download alongside the burned one.
 
 **Key design decisions:**
 - Uses `openai-whisper` (not faster-whisper) — reuses the `torch` install already required for OpenCLIP, no second heavy runtime
@@ -192,7 +198,7 @@ python3 reel_extractor/extract.py --input video.mp4 --output ./reels_output \
   --fade-out 3 --fade-target image --fade-image outro.png
 ```
 
-**Backend routes:** `POST /api/upload-reel-video`, `GET /api/reel-jobs/<id>`, `GET /jobs/<id>/reel-output/<path>` — same job orchestration pattern (`threading.Thread` + `JOBS` dict) as Tab 2's video processing. The upload route also accepts an optional `fade_image` file field for `fade_target=image`.
+**Backend routes:** `POST /api/upload-reel-video`, `GET /api/reel-jobs/<id>`, `POST /api/reel-jobs/<id>/confirm-subtitles`, `GET /jobs/<id>/reel-output/<path>` — same job orchestration pattern (`threading.Thread` + `JOBS` dict) as Tab 2's video processing. The upload route also accepts an optional `fade_image` file field for `fade_target=image`. Job state machine when subtitles are on: `pending → processing → awaiting_review → processing → done`.
 
 **Gotcha hit during development:** when testing manually with a background server process, always confirm you killed the *previous* instance before starting a new one — Flask's dev server fails to bind a busy port and prints "Address already in use" to its own log without crashing the shell job, so stale requests silently hit old code. Check with `lsof -ti:5000` before assuming a fresh start.
 

@@ -275,9 +275,13 @@ def run_reel_job(job_id: str, video_path: str, params: dict):
             "--format", params.get("format", "story"),
             "--whisper-model", params.get("whisper_model", "base"),
             "--subtitle-font", params.get("subtitle_font", "im_fell"),
+            "--language", params.get("language", "es"),
         ]
         if params.get("subtitles"):
             cmd.append("--subtitles")
+            # No quema todavia: el usuario revisa/edita el texto transcrito
+            # en el frontend antes de confirmar (ver /api/reel-jobs/<id>/confirm-subtitles)
+            cmd.append("--skip-burn")
 
         fade_out = float(params.get("fade_out", 0) or 0)
         if fade_out > 0:
@@ -314,11 +318,88 @@ def run_reel_job(job_id: str, video_path: str, params: dict):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
 
         log_write("")
-        log_write("✓ Reel extraction complete")
-        update_job(job_id, status="done", reel_output=str(output_dir), reels=metadata["reels"])
+        if metadata.get("subtitles_pending_review"):
+            log_write("✓ Reels listos, subtitulos pendientes de revision")
+            update_job(
+                job_id, status="awaiting_review", stage="Revisa los subtitulos antes de confirmar",
+                reel_output=str(output_dir), reels=metadata["reels"],
+                subtitle_font=metadata.get("subtitle_font", "im_fell"),
+            )
+        else:
+            log_write("✓ Reel extraction complete")
+            update_job(job_id, status="done", reel_output=str(output_dir), reels=metadata["reels"])
 
     except subprocess.TimeoutExpired:
         update_job(job_id, status="error", error="Reel extraction timeout")
+    except Exception as e:
+        update_job(job_id, status="error", error=f"Error: {e}")
+
+
+def run_burn_subtitles_job(job_id: str, reels_edits: list):
+    """Quema subtitulos (con texto posiblemente editado) para cada reel del
+    job, invocando burn_subs.py por separado (no repite deteccion ni
+    transcripcion, que ya corrieron en run_reel_job)."""
+    job = get_job(job_id)
+    output_dir = Path(job["reel_output"])
+    log_path = Path(job["log_path"])
+
+    def log_write(msg: str, end="\n"):
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(msg + end)
+
+    try:
+        update_job(job_id, status="processing", stage="Quemando subtitulos editados...")
+        reels_by_id = {r["id"]: r for r in job["reels"]}
+        font_name = job.get("subtitle_font", "im_fell")
+
+        for edit in reels_edits:
+            reel_id = edit["id"]
+            reel = reels_by_id.get(reel_id)
+            if not reel or not reel.get("clip"):
+                continue
+
+            segments = edit.get("segments") or []
+            segments_json_path = output_dir / f"_edit_segments_{reel_id:02d}.json"
+            segments_json_path.write_text(json.dumps(segments, ensure_ascii=False), encoding="utf-8")
+
+            clip_path = output_dir / reel["clip"]
+            burned_name = f"{reel_id:02d}_subtitled.mp4"
+            burned_path = clip_path.parent / burned_name
+            srt_path = output_dir / reel["srt"] if reel.get("srt") else None
+
+            cmd = [
+                sys.executable,
+                str(PROJECT_ROOT / "reel_extractor" / "burn_subs.py"),
+                "--clip", str(clip_path),
+                "--segments", str(segments_json_path),
+                "--output", str(burned_path),
+                "--font", font_name,
+            ]
+            if srt_path:
+                cmd.extend(["--srt-output", str(srt_path)])
+
+            log_write(f"Quemando subtitulos editados en reel #{reel_id}...")
+            log_write(f"Comando: {' '.join(cmd)}")
+
+            result = subprocess.run(
+                cmd, stdout=open(log_path, "a"), stderr=subprocess.STDOUT,
+                text=True, cwd=PROJECT_ROOT, timeout=600,
+            )
+            segments_json_path.unlink(missing_ok=True)
+
+            if result.returncode != 0:
+                log_write(f"Aviso: fallo al quemar subtitulos en reel #{reel_id} (exit {result.returncode})")
+                continue
+
+            reel["clip_with_subtitles"] = f"clips/{burned_name}"
+            reel["segments"] = segments
+
+        log_write("")
+        log_write("✓ Subtitulos aplicados")
+        update_job(job_id, status="done", reels=list(reels_by_id.values()))
+
+    except subprocess.TimeoutExpired:
+        update_job(job_id, status="error", error="Timeout al quemar subtitulos")
     except Exception as e:
         update_job(job_id, status="error", error=f"Error: {e}")
 
@@ -476,6 +557,7 @@ def upload_reel_video():
     subtitles = request.form.get("subtitles") in ("1", "true", "on")
     whisper_model = request.form.get("whisper_model", "base")
     subtitle_font = request.form.get("subtitle_font", "im_fell")
+    language = request.form.get("language", "es")
     fade_out = request.form.get("fade_out", "0")
     fade_target = request.form.get("fade_target", "black")
 
@@ -513,6 +595,7 @@ def upload_reel_video():
         "subtitles": subtitles,
         "whisper_model": whisper_model,
         "subtitle_font": subtitle_font,
+        "language": language,
         "fade_out": fade_out,
         "fade_target": fade_target,
         "fade_image_path": str(fade_image_path) if fade_image_path else None,
@@ -559,6 +642,27 @@ def get_reel_status(job_id):
         "reels": reels_out,
         "error": job.get("error"),
     })
+
+
+@app.route("/api/reel-jobs/<job_id>/confirm-subtitles", methods=["POST"])
+def confirm_reel_subtitles(job_id):
+    """Recibe los segmentos de subtitulos (posiblemente editados por el
+    usuario) y dispara la quema sobre los clips ya generados."""
+    job = get_job(job_id)
+    if not job or job.get("type") != "reel":
+        return jsonify({"error": "Job no encontrado"}), 404
+    if job["status"] != "awaiting_review":
+        return jsonify({"error": f"El job no esta esperando revision (status={job['status']})"}), 400
+
+    data = request.get_json() or {}
+    reels_edits = data.get("reels")
+    if not isinstance(reels_edits, list) or not reels_edits:
+        return jsonify({"error": "Se requiere 'reels': [{id, segments}, ...]"}), 400
+
+    thread = threading.Thread(target=run_burn_subtitles_job, args=(job_id, reels_edits), daemon=True)
+    thread.start()
+
+    return jsonify({"job_id": job_id}), 202
 
 
 @app.route("/api/browse")

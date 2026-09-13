@@ -280,6 +280,16 @@
               </select>
               <small>Transcripción local (offline), sin API keys</small>
 
+              <label for="reel-language">Idioma del audio:</label>
+              <select id="reel-language" name="language">
+                <option value="es" selected>Español</option>
+                <option value="en">Inglés</option>
+                <option value="pt">Portugués</option>
+                <option value="fr">Francés</option>
+                <option value="it">Italiano</option>
+                <option value="de">Alemán</option>
+              </select>
+
               <label for="reel-subtitle-font">Tipografía de subtítulos:</label>
               <select id="reel-subtitle-font" name="subtitle_font">
                 <option value="im_fell" selected>IM Fell (default)</option>
@@ -328,6 +338,16 @@
           <div class="status-badge" id="reel-status-badge">Pendiente</div>
           <p class="status-stage" id="reel-status-stage"></p>
           <pre id="reel-log" class="log-output"></pre>
+
+          <div id="reel-review-area" class="result-area hidden">
+            <h3>Revisa los subtítulos antes de quemarlos</h3>
+            <p class="review-hint">
+              Whisper transcribió el audio automáticamente; corrige el texto de cada reel
+              si hace falta. Al confirmar, se queman los subtítulos con el texto que dejes aquí.
+            </p>
+            <div id="reel-review-list"></div>
+            <button id="btn-confirm-subtitles" class="btn-primary">✓ Confirmar y quemar subtítulos →</button>
+          </div>
 
           <div id="reel-result-area" class="result-area hidden">
             <div id="reel-gallery" class="reel-gallery"></div>

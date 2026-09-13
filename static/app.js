@@ -446,6 +446,9 @@ const reelStatusSection = document.getElementById("reel-status-section");
 const reelBadge = document.getElementById("reel-status-badge");
 const reelStage = document.getElementById("reel-status-stage");
 const reelLog = document.getElementById("reel-log");
+const reelReviewArea = document.getElementById("reel-review-area");
+const reelReviewList = document.getElementById("reel-review-list");
+const btnConfirmSubtitles = document.getElementById("btn-confirm-subtitles");
 const reelResultArea = document.getElementById("reel-result-area");
 const reelGallery = document.getElementById("reel-gallery");
 const reelErrorArea = document.getElementById("reel-error-area");
@@ -521,6 +524,7 @@ reelForm.addEventListener("submit", async (e) => {
   formData.append("subtitles", document.getElementById("reel-subtitles").checked ? "1" : "");
   formData.append("whisper_model", document.getElementById("reel-whisper-model").value);
   formData.append("subtitle_font", document.getElementById("reel-subtitle-font").value);
+  formData.append("language", document.getElementById("reel-language").value);
   formData.append("fade_out", reelFadeEnabled.checked ? reelFadeDuration.value : "0");
   formData.append("fade_target", fadeTarget);
   if (reelFadeEnabled.checked && fadeTarget === "image") {
@@ -545,6 +549,8 @@ reelForm.addEventListener("submit", async (e) => {
     reelFormSection.classList.add("hidden");
     reelStatusSection.classList.remove("hidden");
     reelLog.textContent = "";
+    reelReviewArea.classList.add("hidden");
+    reelReviewList.innerHTML = "";
     reelResultArea.classList.add("hidden");
     reelGallery.innerHTML = "";
     reelErrorArea.classList.add("hidden");
@@ -576,8 +582,13 @@ async function pollReelStatus() {
     reelLog.textContent = job.log_tail || "";
     reelLog.scrollTop = reelLog.scrollHeight;
 
-    if (job.status === "done") {
+    if (job.status === "awaiting_review") {
       clearInterval(reelPollingInterval);
+      reelReviewArea.classList.remove("hidden");
+      renderReelReview(job.reels || []);
+    } else if (job.status === "done") {
+      clearInterval(reelPollingInterval);
+      reelReviewArea.classList.add("hidden");
       reelResultArea.classList.remove("hidden");
       btnReelReset.classList.remove("hidden");
       renderReelGallery(job.reels || []);
@@ -591,6 +602,103 @@ async function pollReelStatus() {
     console.error("Error polling reels:", error);
   }
 }
+
+function renderReelReview(reels) {
+  reelReviewList.innerHTML = "";
+  reels.forEach((r) => {
+    const card = document.createElement("div");
+    card.className = "reel-review-card";
+    card.dataset.reelId = r.id;
+
+    const video = document.createElement("video");
+    video.src = r.clip_url;
+    video.controls = true;
+    card.appendChild(video);
+
+    const editor = document.createElement("div");
+    editor.className = "segments-editor";
+
+    const title = document.createElement("h4");
+    title.textContent = `Reel ${r.id} — ${r.start.toFixed(1)}s a ${r.end.toFixed(1)}s`;
+    editor.appendChild(title);
+
+    const segments = r.segments || [];
+    if (segments.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "no-segments";
+      empty.textContent = "No se detectó texto hablado en este reel.";
+      editor.appendChild(empty);
+    } else {
+      segments.forEach((seg, idx) => {
+        const row = document.createElement("div");
+        row.className = "segment-row";
+
+        const time = document.createElement("span");
+        time.className = "segment-time";
+        time.textContent = `${seg.start.toFixed(1)}s–${seg.end.toFixed(1)}s`;
+        row.appendChild(time);
+
+        const textarea = document.createElement("textarea");
+        textarea.value = seg.text;
+        textarea.dataset.segIndex = idx;
+        textarea.dataset.segStart = seg.start;
+        textarea.dataset.segEnd = seg.end;
+        row.appendChild(textarea);
+
+        editor.appendChild(row);
+      });
+    }
+
+    card.appendChild(editor);
+    reelReviewList.appendChild(card);
+  });
+}
+
+btnConfirmSubtitles.addEventListener("click", async () => {
+  if (!currentReelJobId) return;
+
+  const reelsPayload = [];
+  reelReviewList.querySelectorAll(".reel-review-card").forEach((card) => {
+    const reelId = parseInt(card.dataset.reelId, 10);
+    const segments = [];
+    card.querySelectorAll(".segment-row textarea").forEach((textarea) => {
+      segments.push({
+        start: parseFloat(textarea.dataset.segStart),
+        end: parseFloat(textarea.dataset.segEnd),
+        text: textarea.value.trim(),
+      });
+    });
+    reelsPayload.push({ id: reelId, segments });
+  });
+
+  btnConfirmSubtitles.disabled = true;
+  btnConfirmSubtitles.textContent = "Quemando subtítulos...";
+
+  try {
+    const response = await fetch(`/api/reel-jobs/${currentReelJobId}/confirm-subtitles`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reels: reelsPayload }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      alert(`Error: ${error.error || "No se pudo confirmar"}`);
+      btnConfirmSubtitles.disabled = false;
+      btnConfirmSubtitles.textContent = "✓ Confirmar y quemar subtítulos →";
+      return;
+    }
+
+    reelReviewArea.classList.add("hidden");
+    pollReelStatus();
+    reelPollingInterval = setInterval(pollReelStatus, 1500);
+  } catch (error) {
+    alert(`Error: ${error.message}`);
+  } finally {
+    btnConfirmSubtitles.disabled = false;
+    btnConfirmSubtitles.textContent = "✓ Confirmar y quemar subtítulos →";
+  }
+});
 
 function renderReelGallery(reels) {
   reelGallery.innerHTML = "";
@@ -609,17 +717,18 @@ function renderReelGallery(reels) {
 
     const links = document.createElement("div");
     links.className = "reel-card-links";
+
+    const clipLink = document.createElement("a");
+    clipLink.href = r.clip_url;
+    clipLink.download = "";
+    clipLink.textContent = "⬇ Sin subtítulos";
+    links.appendChild(clipLink);
+
     if (r.burned_clip_url) {
       const a = document.createElement("a");
       a.href = r.burned_clip_url;
       a.download = "";
       a.textContent = "⬇ Con subtítulos";
-      links.appendChild(a);
-    } else {
-      const a = document.createElement("a");
-      a.href = r.clip_url;
-      a.download = "";
-      a.textContent = "⬇ Clip";
       links.appendChild(a);
     }
     if (r.srt_url) {
@@ -639,6 +748,7 @@ function formatReelStatus(status) {
   const labels = {
     pending: "⏳ Pendiente",
     processing: "🎬 Procesando",
+    awaiting_review: "📝 Revisa los subtítulos",
     done: "✅ Listo",
     error: "❌ Error",
   };
@@ -657,6 +767,8 @@ btnReelReset.addEventListener("click", () => {
   reelFadeImageField.classList.add("hidden");
   reelFadeDurationLabel.textContent = "3s";
   reelLog.textContent = "";
+  reelReviewArea.classList.add("hidden");
+  reelReviewList.innerHTML = "";
   reelResultArea.classList.add("hidden");
   reelGallery.innerHTML = "";
   reelErrorArea.classList.add("hidden");
