@@ -153,13 +153,12 @@ def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_targe
         else:
             scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}"
 
-        # Separate paths: video fades to black, image fades in from transparent
-        # Use lut to ensure alpha channel is initialized to 0 before fade
+        # Simple approach: video fades to black, image overlays on top
+        # The transition happens naturally as video darkens and image appears
         vf_complex = (
             f"[0:v]fade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}:color=black[vfade];"
-            f"[1:v]{scale_filter},format=rgba,lut=y='p(X\\,Y)':u='p(X\\,Y)':v='p(X\\,Y)':a='0'[imgzero];"
-            f"[imgzero]fade=t=in:st={fade_start:.3f}:d={fade_duration:.3f}:alpha=1[imgfade];"
-            f"[vfade][imgfade]overlay[vout]"
+            f"[1:v]{scale_filter}[imgscaled];"
+            f"[vfade][imgscaled]overlay[vout]"
         )
         run([
             "ffmpeg", "-y",
