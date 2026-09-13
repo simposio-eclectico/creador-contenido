@@ -679,6 +679,49 @@ footer {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Galeria de reels */
+.reel-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.reel-card {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.reel-card video {
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 9 / 16;
+  border-radius: 6px;
+  background: #000;
+  display: block;
+  margin: 0 auto;
+}
+
+.reel-card p {
+  font-size: 0.8em;
+  color: var(--fg-muted);
+  margin: 0.5rem 0;
+}
+
+.reel-card-links {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.reel-card-links a {
+  font-size: 0.85em;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
   .container {

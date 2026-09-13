@@ -16,6 +16,7 @@
     <div class="tabs-header">
       <button class="tab-button active" data-tab="composition">🎨 Composición</button>
       <button class="tab-button" data-tab="video">🎬 Video</button>
+      <button class="tab-button" data-tab="reels">✂️ Reels</button>
     </div>
 
     <main>
@@ -218,6 +219,88 @@
           </div>
 
           <button id="btn-video-reset" class="btn-secondary hidden">
+            Volver a intentar
+          </button>
+        </section>
+      </section>
+
+      <section id="tab-reels" class="tab-content hidden">
+        <section id="reel-form-section" class="form-section">
+          <h2>Extraer reels destacados</h2>
+          <form id="reel-form">
+            <fieldset>
+              <legend>Archivo de video</legend>
+              <label for="reel-video-input">Selecciona un archivo de video:</label>
+              <input
+                type="file"
+                id="reel-video-input"
+                name="video"
+                accept="video/*"
+                required
+              >
+              <small>Formatos: MP4, MOV, MKV, etc.</small>
+            </fieldset>
+
+            <fieldset>
+              <legend>Duración de cada reel</legend>
+              <input type="range" id="reel-duration" name="duration" min="15" max="60" step="5" value="30">
+              <output id="reel-duration-label">30s</output>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cantidad de reels</legend>
+              <input type="number" id="reel-count" name="count" min="1" max="10" value="3">
+            </fieldset>
+
+            <fieldset>
+              <legend>Peso audio vs. visual</legend>
+              <input type="range" id="reel-audio-weight" name="audio_weight" min="0" max="100" step="10" value="50">
+              <output id="reel-weight-label">Balanceado</output>
+              <small>0% = solo visual, 100% = priorizar audio</small>
+            </fieldset>
+
+            <fieldset>
+              <legend>Formato</legend>
+              <select id="reel-format" name="format">
+                <option value="story" selected>Story (1080x1920)</option>
+                <option value="square">Cuadrado (1080x1080)</option>
+              </select>
+            </fieldset>
+
+            <fieldset>
+              <label>
+                <input type="checkbox" id="reel-subtitles" name="subtitles" checked>
+                Generar subtítulos (Whisper)
+              </label>
+              <label for="reel-whisper-model">Modelo:</label>
+              <select id="reel-whisper-model" name="whisper_model">
+                <option value="tiny">Rápido (tiny)</option>
+                <option value="base" selected>Balanceado (base)</option>
+                <option value="small">Preciso (small)</option>
+              </select>
+              <small>Transcripción local (offline), sin API keys</small>
+            </fieldset>
+
+            <button type="submit" class="btn-primary">Generar reels →</button>
+          </form>
+        </section>
+
+        <section id="reel-status-section" class="status-section hidden">
+          <h2>Estado del procesamiento</h2>
+          <div class="status-badge" id="reel-status-badge">Pendiente</div>
+          <p class="status-stage" id="reel-status-stage"></p>
+          <pre id="reel-log" class="log-output"></pre>
+
+          <div id="reel-result-area" class="result-area hidden">
+            <div id="reel-gallery" class="reel-gallery"></div>
+          </div>
+
+          <div id="reel-error-area" class="error-area hidden">
+            <h3>❌ Error</h3>
+            <pre id="reel-error-text"></pre>
+          </div>
+
+          <button id="btn-reel-reset" class="btn-secondary hidden">
             Volver a intentar
           </button>
         </section>

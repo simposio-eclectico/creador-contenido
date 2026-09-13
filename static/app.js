@@ -432,6 +432,196 @@ btnVideoReset.addEventListener("click", () => {
   btnVideoReset.classList.add("hidden");
 });
 
+// --------------------------------------------------------------------------
+// Manejo de extraccion de reels (Tab 3)
+// --------------------------------------------------------------------------
+
+let currentReelJobId = null;
+let reelPollingInterval = null;
+
+const reelForm = document.getElementById("reel-form");
+const reelVideoInput = document.getElementById("reel-video-input");
+const reelFormSection = document.getElementById("reel-form-section");
+const reelStatusSection = document.getElementById("reel-status-section");
+const reelBadge = document.getElementById("reel-status-badge");
+const reelStage = document.getElementById("reel-status-stage");
+const reelLog = document.getElementById("reel-log");
+const reelResultArea = document.getElementById("reel-result-area");
+const reelGallery = document.getElementById("reel-gallery");
+const reelErrorArea = document.getElementById("reel-error-area");
+const reelErrorText = document.getElementById("reel-error-text");
+const btnReelReset = document.getElementById("btn-reel-reset");
+
+const reelDurationInput = document.getElementById("reel-duration");
+const reelDurationLabel = document.getElementById("reel-duration-label");
+const reelAudioWeightInput = document.getElementById("reel-audio-weight");
+const reelWeightLabel = document.getElementById("reel-weight-label");
+
+reelDurationInput.addEventListener("input", () => {
+  reelDurationLabel.textContent = `${reelDurationInput.value}s`;
+});
+
+function audioWeightPresetLabel(value) {
+  if (value < 33) return "Solo visual";
+  if (value > 66) return "Priorizar audio";
+  return "Balanceado";
+}
+
+reelAudioWeightInput.addEventListener("input", () => {
+  reelWeightLabel.textContent = audioWeightPresetLabel(parseInt(reelAudioWeightInput.value, 10));
+});
+
+reelForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const file = reelVideoInput.files?.[0];
+  if (!file) {
+    alert("Selecciona un archivo de video");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("video", file);
+  formData.append("duration", reelDurationInput.value);
+  formData.append("count", document.getElementById("reel-count").value);
+  formData.append("audio_weight", (parseInt(reelAudioWeightInput.value, 10) / 100).toFixed(2));
+  formData.append("format", document.getElementById("reel-format").value);
+  formData.append("subtitles", document.getElementById("reel-subtitles").checked ? "1" : "");
+  formData.append("whisper_model", document.getElementById("reel-whisper-model").value);
+
+  try {
+    const response = await fetch("/api/upload-reel-video", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      alert(`Error: ${error.error || "No se pudo enviar el video"}`);
+      return;
+    }
+
+    const result = await response.json();
+    currentReelJobId = result.job_id;
+
+    reelFormSection.classList.add("hidden");
+    reelStatusSection.classList.remove("hidden");
+    reelLog.textContent = "";
+    reelResultArea.classList.add("hidden");
+    reelGallery.innerHTML = "";
+    reelErrorArea.classList.add("hidden");
+    btnReelReset.classList.add("hidden");
+
+    pollReelStatus();
+    reelPollingInterval = setInterval(pollReelStatus, 1500);
+  } catch (error) {
+    alert(`Error: ${error.message}`);
+  }
+});
+
+async function pollReelStatus() {
+  if (!currentReelJobId) return;
+
+  try {
+    const response = await fetch(`/api/reel-jobs/${currentReelJobId}`);
+    if (!response.ok) {
+      console.error("Error al consultar estado de reels");
+      return;
+    }
+
+    const job = await response.json();
+
+    reelBadge.textContent = formatReelStatus(job.status);
+    reelBadge.className = `status-badge ${job.status}`;
+
+    reelStage.textContent = job.stage || "";
+    reelLog.textContent = job.log_tail || "";
+    reelLog.scrollTop = reelLog.scrollHeight;
+
+    if (job.status === "done") {
+      clearInterval(reelPollingInterval);
+      reelResultArea.classList.remove("hidden");
+      btnReelReset.classList.remove("hidden");
+      renderReelGallery(job.reels || []);
+    } else if (job.status === "error") {
+      clearInterval(reelPollingInterval);
+      reelErrorArea.classList.remove("hidden");
+      reelErrorText.textContent = job.error || "Error desconocido";
+      btnReelReset.classList.remove("hidden");
+    }
+  } catch (error) {
+    console.error("Error polling reels:", error);
+  }
+}
+
+function renderReelGallery(reels) {
+  reelGallery.innerHTML = "";
+  reels.forEach((r) => {
+    const card = document.createElement("div");
+    card.className = "reel-card";
+
+    const video = document.createElement("video");
+    video.src = r.burned_clip_url || r.clip_url;
+    video.controls = true;
+    card.appendChild(video);
+
+    const meta = document.createElement("p");
+    meta.textContent = `Reel ${r.id} — ${r.start.toFixed(1)}s a ${r.end.toFixed(1)}s (score ${r.score.toFixed(2)})`;
+    card.appendChild(meta);
+
+    const links = document.createElement("div");
+    links.className = "reel-card-links";
+    if (r.burned_clip_url) {
+      const a = document.createElement("a");
+      a.href = r.burned_clip_url;
+      a.download = "";
+      a.textContent = "⬇ Con subtítulos";
+      links.appendChild(a);
+    } else {
+      const a = document.createElement("a");
+      a.href = r.clip_url;
+      a.download = "";
+      a.textContent = "⬇ Clip";
+      links.appendChild(a);
+    }
+    if (r.srt_url) {
+      const a = document.createElement("a");
+      a.href = r.srt_url;
+      a.download = "";
+      a.textContent = "⬇ .srt";
+      links.appendChild(a);
+    }
+    card.appendChild(links);
+
+    reelGallery.appendChild(card);
+  });
+}
+
+function formatReelStatus(status) {
+  const labels = {
+    pending: "⏳ Pendiente",
+    processing: "🎬 Procesando",
+    done: "✅ Listo",
+    error: "❌ Error",
+  };
+  return labels[status] || status;
+}
+
+btnReelReset.addEventListener("click", () => {
+  currentReelJobId = null;
+  if (reelPollingInterval) {
+    clearInterval(reelPollingInterval);
+  }
+  reelStatusSection.classList.add("hidden");
+  reelFormSection.classList.remove("hidden");
+  reelForm.reset();
+  reelLog.textContent = "";
+  reelResultArea.classList.add("hidden");
+  reelGallery.innerHTML = "";
+  reelErrorArea.classList.add("hidden");
+  btnReelReset.classList.add("hidden");
+});
+
 btnReset.addEventListener("click", () => {
   currentJobId = null;
   if (statusPollingInterval) {
