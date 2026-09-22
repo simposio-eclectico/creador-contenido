@@ -664,6 +664,32 @@ function createSegmentRow(container, idx, start, end, text, card, btnAddSegment 
   }
 }
 
+function formatVideoTime(seconds) {
+  if (!isFinite(seconds) || seconds < 0) seconds = 0;
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// Agrega un indicador "mm:ss / mm:ss" sobre el video (container debe tener
+// position:relative). Los controles nativos (video.controls=true) ya
+// permiten reproducir desde el inicio o hacer seek a cualquier punto de la
+// barra; esto solo agrega un indicador de tiempo más visible/legible.
+function attachTimeDisplay(video, container) {
+  const timeDisplay = document.createElement("div");
+  timeDisplay.className = "video-time-display";
+  timeDisplay.textContent = "0:00 / 0:00";
+  container.appendChild(timeDisplay);
+
+  const update = () => {
+    timeDisplay.textContent = `${formatVideoTime(video.currentTime)} / ${formatVideoTime(video.duration)}`;
+  };
+  video.addEventListener("timeupdate", update);
+  video.addEventListener("loadedmetadata", update);
+  video.addEventListener("seeking", update);
+  return timeDisplay;
+}
+
 function renderReelReview(reels) {
   reelReviewList.innerHTML = "";
   reels.forEach((r) => {
@@ -682,6 +708,7 @@ function renderReelReview(reels) {
       updateSubtitlePreview(card, video.currentTime);
     });
     playerContainer.appendChild(video);
+    attachTimeDisplay(video, playerContainer);
 
     const subtitleOverlay = document.createElement("div");
     subtitleOverlay.className = "subtitle-overlay";
@@ -814,10 +841,15 @@ function renderReelGallery(reels) {
     const card = document.createElement("div");
     card.className = "reel-card";
 
+    const playerContainer = document.createElement("div");
+    playerContainer.className = "reel-card-player";
+
     const video = document.createElement("video");
     video.src = r.burned_clip_url || r.clip_url;
     video.controls = true;
-    card.appendChild(video);
+    playerContainer.appendChild(video);
+    attachTimeDisplay(video, playerContainer);
+    card.appendChild(playerContainer);
 
     const meta = document.createElement("p");
     meta.textContent = `Reel ${r.id} — ${r.start.toFixed(1)}s a ${r.end.toFixed(1)}s (score ${r.score.toFixed(2)})`;
