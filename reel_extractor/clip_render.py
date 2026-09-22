@@ -174,12 +174,17 @@ def apply_fade(clip_path, out_path, clip_duration, fade_duration=3.0, fade_targe
         else:
             scale_filter = f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase:in_range=full:out_range=tv,format=yuv420p,crop={target_w}:{target_h}"
 
-        # Simple approach: video fades to black, image overlays on top
-        # The transition happens naturally as video darkens and image appears
+        # The image is loaded for the full clip duration (so it can be
+        # scaled once), but must stay invisible until the fade window:
+        # format=yuva420p adds an alpha channel, then fade=...:alpha=1
+        # ramps it from 0 to 1 only during [fade_start, fade_start+d].
+        # Without this, overlay draws the (fully opaque) image over the
+        # entire clip instead of just the fadeout.
         vf_complex = (
             f"[0:v]fade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}:color=black[vfade];"
-            f"[1:v]{scale_filter}[imgscaled];"
-            f"[vfade][imgscaled]overlay[vout]"
+            f"[1:v]{scale_filter},format=yuva420p,"
+            f"fade=t=in:st={fade_start:.3f}:d={fade_duration:.3f}:alpha=1[imgfade];"
+            f"[vfade][imgfade]overlay[vout]"
         )
         run([
             "ffmpeg", "-y",
