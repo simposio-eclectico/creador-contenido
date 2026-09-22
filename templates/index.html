@@ -355,6 +355,33 @@
               Whisper transcribió el audio automáticamente; corrige el texto de cada reel
               si hace falta. Al confirmar, se queman los subtítulos con el texto que dejes aquí.
             </p>
+            <div id="subtitle-style-panel" class="subtitle-style-panel">
+              <h4>Estilo de los subtítulos</h4>
+              <div class="subtitle-style-row">
+                <label for="sub-style-font-color">Color del texto</label>
+                <input type="color" id="sub-style-font-color" value="#ffffff">
+                <label for="sub-style-font-opacity">Transparencia</label>
+                <input type="range" id="sub-style-font-opacity" min="0" max="100" value="100">
+              </div>
+              <div class="subtitle-style-row">
+                <label for="sub-style-background-enabled">
+                  <input type="checkbox" id="sub-style-background-enabled" checked>
+                  Fondo
+                </label>
+                <input type="color" id="sub-style-background-color" value="#000000">
+                <label for="sub-style-background-opacity">Transparencia</label>
+                <input type="range" id="sub-style-background-opacity" min="0" max="100" value="55">
+              </div>
+              <div class="subtitle-style-row">
+                <label for="sub-style-outline-enabled">
+                  <input type="checkbox" id="sub-style-outline-enabled">
+                  Borde
+                </label>
+                <input type="color" id="sub-style-outline-color" value="#000000">
+                <label for="sub-style-outline-width">Grosor</label>
+                <input type="range" id="sub-style-outline-width" min="1" max="8" value="2">
+              </div>
+            </div>
             <div id="reel-review-list"></div>
             <button id="btn-confirm-subtitles" class="btn-primary">✓ Confirmar y quemar subtítulos →</button>
           </div>

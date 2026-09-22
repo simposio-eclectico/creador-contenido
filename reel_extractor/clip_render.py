@@ -84,7 +84,12 @@ def _escape_drawtext(text):
     )
 
 
-def burn_subtitles(clip_path, segments, out_path, font_name=None):
+def burn_subtitles(
+    clip_path, segments, out_path, font_name=None,
+    font_color="white", font_opacity=1.0,
+    background_enabled=True, background_color="black", background_opacity=0.55,
+    outline_enabled=False, outline_color="black", outline_width=2,
+):
     """Quema subtitulos sobre un clip ya renderizado encadenando un filtro
     'drawtext' por segmento (con enable=between(t,start,end)). Se prefiere
     drawtext sobre el filtro 'subtitles' porque este ultimo requiere libass,
@@ -95,6 +100,11 @@ def burn_subtitles(clip_path, segments, out_path, font_name=None):
     segments: lista de dicts {"start", "end", "text"} en tiempo relativo
     al clip (0 = inicio del clip).
     font_name: clave de fonts.py::FONT_CATALOG (default 'im_fell').
+    font_color / font_opacity: color y transparencia (0-1) del texto.
+    background_enabled: si dibuja una caja de fondo detras del texto.
+    background_color / background_opacity: color y transparencia (0-1) de esa caja.
+    outline_enabled: si dibuja un borde/contorno alrededor de las letras.
+    outline_color / outline_width: color y grosor (px) del borde.
     """
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,6 +116,16 @@ def burn_subtitles(clip_path, segments, out_path, font_name=None):
     font_path = resolve_font_path(font_name)
     fontfile_clause = f"fontfile='{_escape_drawtext(str(font_path))}':" if font_path else ""
 
+    if background_enabled:
+        box_clause = f"box=1:boxcolor={background_color}@{background_opacity}:boxborderw=12:"
+    else:
+        box_clause = "box=0:"
+
+    if outline_enabled:
+        border_clause = f"borderw={outline_width}:bordercolor={outline_color}:"
+    else:
+        border_clause = "borderw=0:"
+
     filters = []
     for seg in segments:
         text = _escape_drawtext(seg["text"])
@@ -113,7 +133,8 @@ def burn_subtitles(clip_path, segments, out_path, font_name=None):
             "drawtext="
             f"{fontfile_clause}"
             f"text='{text}':"
-            "fontsize=42:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=12:"
+            f"fontsize=42:fontcolor={font_color}@{font_opacity}:"
+            f"{box_clause}{border_clause}"
             "x=(w-text_w)/2:y=h-220:"
             f"enable='between(t,{seg['start']:.3f},{seg['end']:.3f})'"
         )

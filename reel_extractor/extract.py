@@ -56,6 +56,14 @@ def main():
         "--subtitle-font", default="im_fell", choices=sorted(FONT_CATALOG),
         help="Tipografia para quemar subtitulos (default 'im_fell')",
     )
+    ap.add_argument("--subtitle-font-color", default="white", help="Color del texto de subtitulos (default 'white')")
+    ap.add_argument("--subtitle-font-opacity", type=float, default=1.0, help="Transparencia del texto 0-1 (default 1.0)")
+    ap.add_argument("--subtitle-background-enabled", default="true", choices=["true", "false"], help="Dibuja fondo detras del texto")
+    ap.add_argument("--subtitle-background-color", default="black", help="Color del fondo (default 'black')")
+    ap.add_argument("--subtitle-background-opacity", type=float, default=0.55, help="Transparencia del fondo 0-1 (default 0.55)")
+    ap.add_argument("--subtitle-outline-enabled", default="false", choices=["true", "false"], help="Dibuja borde/contorno en el texto")
+    ap.add_argument("--subtitle-outline-color", default="black", help="Color del borde (default 'black')")
+    ap.add_argument("--subtitle-outline-width", type=int, default=2, help="Grosor del borde en px (default 2)")
     ap.add_argument(
         "--fade-out", type=float, default=0.0,
         help="Segundos de fadeout de audio/video al final de cada reel (0 = desactivado)",
@@ -179,7 +187,15 @@ def main():
                 print(f"Quemando subtitulos en reel #{reel_id} (fuente: {args.subtitle_font})...")
                 burned_path = clips_dir / f"{reel_id:02d}_subtitled.mp4"
                 try:
-                    burn_subtitles(clip_path, window_segments, burned_path, font_name=args.subtitle_font)
+                    burn_subtitles(
+                        clip_path, window_segments, burned_path, font_name=args.subtitle_font,
+                        font_color=args.subtitle_font_color, font_opacity=args.subtitle_font_opacity,
+                        background_enabled=args.subtitle_background_enabled == "true",
+                        background_color=args.subtitle_background_color,
+                        background_opacity=args.subtitle_background_opacity,
+                        outline_enabled=args.subtitle_outline_enabled == "true",
+                        outline_color=args.subtitle_outline_color, outline_width=args.subtitle_outline_width,
+                    )
                     reel["clip_with_subtitles"] = f"clips/{burned_path.name}"
                 except RuntimeError as exc:
                     print(

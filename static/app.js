@@ -449,6 +449,14 @@ const reelLog = document.getElementById("reel-log");
 const reelReviewArea = document.getElementById("reel-review-area");
 const reelReviewList = document.getElementById("reel-review-list");
 const btnConfirmSubtitles = document.getElementById("btn-confirm-subtitles");
+const subStyleFontColor = document.getElementById("sub-style-font-color");
+const subStyleFontOpacity = document.getElementById("sub-style-font-opacity");
+const subStyleBackgroundEnabled = document.getElementById("sub-style-background-enabled");
+const subStyleBackgroundColor = document.getElementById("sub-style-background-color");
+const subStyleBackgroundOpacity = document.getElementById("sub-style-background-opacity");
+const subStyleOutlineEnabled = document.getElementById("sub-style-outline-enabled");
+const subStyleOutlineColor = document.getElementById("sub-style-outline-color");
+const subStyleOutlineWidth = document.getElementById("sub-style-outline-width");
 const reelResultArea = document.getElementById("reel-result-area");
 const reelGallery = document.getElementById("reel-gallery");
 const reelErrorArea = document.getElementById("reel-error-area");
@@ -758,10 +766,69 @@ function renderReelReview(reels) {
   });
 }
 
+// Lee los controles de estilo (color/transparencia/fondo/borde) y devuelve
+// un objeto usado tanto para la vista previa en vivo (CSS) como para el
+// payload enviado a /confirm-subtitles (que lo reenvia a burn_subs.py).
+function getSubtitleStyle() {
+  return {
+    font_color: subStyleFontColor.value,
+    font_opacity: parseInt(subStyleFontOpacity.value, 10) / 100,
+    background_enabled: subStyleBackgroundEnabled.checked,
+    background_color: subStyleBackgroundColor.value,
+    background_opacity: parseInt(subStyleBackgroundOpacity.value, 10) / 100,
+    outline_enabled: subStyleOutlineEnabled.checked,
+    outline_color: subStyleOutlineColor.value,
+    outline_width: parseInt(subStyleOutlineWidth.value, 10),
+  };
+}
+
+function applySubtitleStyleToElement(el, style) {
+  el.style.color = style.font_color;
+  el.style.opacity = style.font_opacity;
+  el.style.backgroundColor = style.background_enabled
+    ? hexToRgba(style.background_color, style.background_opacity)
+    : "transparent";
+  el.style.textShadow = style.outline_enabled
+    ? buildOutlineShadow(style.outline_color, style.outline_width)
+    : "none";
+}
+
+function hexToRgba(hex, opacity) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+// Simula un contorno (drawtext borderw/bordercolor) apilando text-shadow
+// en 8 direcciones, ya que CSS no tiene un equivalente directo a 1:1.
+function buildOutlineShadow(color, width) {
+  const offsets = [[-1,-1],[1,-1],[-1,1],[1,1],[0,-1],[0,1],[-1,0],[1,0]];
+  return offsets.map(([x, y]) => `${x * width}px ${y * width}px 0 ${color}`).join(", ");
+}
+
+function updateAllSubtitlePreviewStyles() {
+  const style = getSubtitleStyle();
+  document.querySelectorAll(".reel-review-card").forEach((card) => {
+    card.querySelectorAll(".subtitle-text").forEach((el) => applySubtitleStyleToElement(el, style));
+  });
+}
+
+[
+  subStyleFontColor, subStyleFontOpacity,
+  subStyleBackgroundEnabled, subStyleBackgroundColor, subStyleBackgroundOpacity,
+  subStyleOutlineEnabled, subStyleOutlineColor, subStyleOutlineWidth,
+].forEach((el) => {
+  el.addEventListener("input", updateAllSubtitlePreviewStyles);
+  el.addEventListener("change", updateAllSubtitlePreviewStyles);
+});
+
 function updateSubtitlePreview(card, currentTime = 0) {
   const overlay = card.querySelector(".subtitle-overlay");
   overlay.innerHTML = "";
 
+  const style = getSubtitleStyle();
   const rows = card.querySelectorAll(".segment-row-editable");
   rows.forEach((row) => {
     const startInput = row.querySelector("input[data-time-field='start']");
@@ -777,6 +844,7 @@ function updateSubtitlePreview(card, currentTime = 0) {
       const subtitle = document.createElement("div");
       subtitle.className = "subtitle-text";
       subtitle.textContent = text;
+      applySubtitleStyleToElement(subtitle, style);
       overlay.appendChild(subtitle);
     }
   });
@@ -813,7 +881,7 @@ btnConfirmSubtitles.addEventListener("click", async () => {
     const response = await fetch(`/api/reel-jobs/${currentReelJobId}/confirm-subtitles`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reels: reelsPayload }),
+      body: JSON.stringify({ reels: reelsPayload, subtitle_style: getSubtitleStyle() }),
     });
 
     if (!response.ok) {

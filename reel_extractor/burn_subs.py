@@ -37,6 +37,14 @@ def main():
     ap.add_argument("--output", required=True, help="Ruta de salida para el clip con subtitulos quemados")
     ap.add_argument("--srt-output", help="Si se pasa, ademas re-escribe el .srt con el texto (posiblemente editado)")
     ap.add_argument("--font", default="im_fell", choices=sorted(FONT_CATALOG))
+    ap.add_argument("--font-color", default="white", help="Color del texto (nombre o hex, default 'white')")
+    ap.add_argument("--font-opacity", type=float, default=1.0, help="Transparencia del texto 0-1 (default 1.0)")
+    ap.add_argument("--background-enabled", default="true", choices=["true", "false"], help="Dibuja fondo detras del texto")
+    ap.add_argument("--background-color", default="black", help="Color del fondo (default 'black')")
+    ap.add_argument("--background-opacity", type=float, default=0.55, help="Transparencia del fondo 0-1 (default 0.55)")
+    ap.add_argument("--outline-enabled", default="false", choices=["true", "false"], help="Dibuja borde/contorno en el texto")
+    ap.add_argument("--outline-color", default="black", help="Color del borde (default 'black')")
+    ap.add_argument("--outline-width", type=int, default=2, help="Grosor del borde en px (default 2)")
     args = ap.parse_args()
 
     clip_path = Path(args.clip).resolve()
@@ -48,7 +56,14 @@ def main():
     if args.srt_output:
         write_srt(segments, args.srt_output)
 
-    burn_subtitles(clip_path, segments, args.output, font_name=args.font)
+    burn_subtitles(
+        clip_path, segments, args.output, font_name=args.font,
+        font_color=args.font_color, font_opacity=args.font_opacity,
+        background_enabled=args.background_enabled == "true",
+        background_color=args.background_color, background_opacity=args.background_opacity,
+        outline_enabled=args.outline_enabled == "true",
+        outline_color=args.outline_color, outline_width=args.outline_width,
+    )
     print(f"Listo: {args.output}")
 
 

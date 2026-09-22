@@ -339,13 +339,14 @@ def run_reel_job(job_id: str, video_path: str, params: dict):
         update_job(job_id, status="error", error=f"Error: {e}")
 
 
-def run_burn_subtitles_job(job_id: str, reels_edits: list):
+def run_burn_subtitles_job(job_id: str, reels_edits: list, subtitle_style: dict = None):
     """Quema subtitulos (con texto posiblemente editado) para cada reel del
     job, invocando burn_subs.py por separado (no repite deteccion ni
     transcripcion, que ya corrieron en run_reel_job)."""
     job = get_job(job_id)
     output_dir = Path(job["reel_output"])
     log_path = Path(job["log_path"])
+    subtitle_style = subtitle_style or {}
 
     def log_write(msg: str, end="\n"):
         with open(log_path, "a", encoding="utf-8") as f:
@@ -378,6 +379,14 @@ def run_burn_subtitles_job(job_id: str, reels_edits: list):
                 "--segments", str(segments_json_path),
                 "--output", str(burned_path),
                 "--font", font_name,
+                "--font-color", str(subtitle_style.get("font_color", "white")),
+                "--font-opacity", str(subtitle_style.get("font_opacity", 1.0)),
+                "--background-enabled", "true" if subtitle_style.get("background_enabled", True) else "false",
+                "--background-color", str(subtitle_style.get("background_color", "black")),
+                "--background-opacity", str(subtitle_style.get("background_opacity", 0.55)),
+                "--outline-enabled", "true" if subtitle_style.get("outline_enabled", False) else "false",
+                "--outline-color", str(subtitle_style.get("outline_color", "black")),
+                "--outline-width", str(subtitle_style.get("outline_width", 2)),
             ]
             if srt_path:
                 cmd.extend(["--srt-output", str(srt_path)])
@@ -666,8 +675,11 @@ def confirm_reel_subtitles(job_id):
     reels_edits = data.get("reels")
     if not isinstance(reels_edits, list) or not reels_edits:
         return jsonify({"error": "Se requiere 'reels': [{id, segments}, ...]"}), 400
+    subtitle_style = data.get("subtitle_style") or {}
 
-    thread = threading.Thread(target=run_burn_subtitles_job, args=(job_id, reels_edits), daemon=True)
+    thread = threading.Thread(
+        target=run_burn_subtitles_job, args=(job_id, reels_edits, subtitle_style), daemon=True
+    )
     thread.start()
 
     return jsonify({"job_id": job_id}), 202
